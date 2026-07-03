@@ -1,0 +1,9 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Las route handlers de /app/api/** se deployan como Netlify Functions
+# automáticamente vía el plugin de Next.js.
