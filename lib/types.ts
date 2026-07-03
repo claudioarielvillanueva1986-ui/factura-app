@@ -12,6 +12,8 @@ export interface Negocio {
   punto_venta: number;
   plan: string;
   trial_hasta: string | null;
+  arca_modo?: "delegado" | "certificado_propio";
+  arca_verificado_en?: string | null;
 }
 
 export interface Usuario {

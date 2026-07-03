@@ -5,21 +5,19 @@ import { procesarEventoMP } from "@/lib/mp";
 export const runtime = "nodejs";
 export const maxDuration = 26;
 
-// Webhook por negocio (modo manual: access token pegado a mano).
-// Con OAuth se usa el webhook único de plataforma (/api/mp/webhook);
-// esta ruta queda para configuraciones manuales existentes.
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ negocio_id: string }> }
-) {
-  const { negocio_id } = await params;
+// Webhook ÚNICO de plataforma (cuentas conectadas por OAuth).
+// Se configura una sola vez en el panel de la aplicación de Mercado Pago:
+//   {NEXT_PUBLIC_APP_URL}/api/mp/webhook  →  evento "Pagos"
+// MP incluye user_id del vendedor en la notificación; con eso resolvemos
+// el negocio. Siempre responde 200 para evitar reintentos infinitos.
+export async function POST(request: NextRequest) {
   const admin = createSupabaseAdminClient();
 
   let payload: Record<string, unknown> = {};
   try {
     payload = await request.json();
   } catch {
-    // MP a veces manda query params sin body (topic/id)
+    // notificaciones viejas llegan solo con query params
   }
 
   const tipo =
@@ -33,8 +31,10 @@ export async function POST(
     request.nextUrl.searchParams.get("data.id") ??
     request.nextUrl.searchParams.get("id");
 
+  const mpUserId = payload.user_id != null ? String(payload.user_id) : null;
+
   await procesarEventoMP(admin, {
-    negocioId: negocio_id,
+    mpUserId: mpUserId ?? undefined,
     tipo: tipo ?? null,
     paymentId: paymentId != null ? String(paymentId) : null,
     payload,
@@ -45,5 +45,5 @@ export async function POST(
 
 // MP hace un GET de prueba al configurar la URL
 export async function GET() {
-  return NextResponse.json({ ok: true, servicio: "facturá webhook MP" });
+  return NextResponse.json({ ok: true, servicio: "facturá webhook MP (plataforma)" });
 }

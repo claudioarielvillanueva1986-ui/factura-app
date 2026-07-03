@@ -20,11 +20,12 @@ const ERRORES_ARCA: { patron: RegExp; mensaje: string }[] = [
       "(elegí 'RECE para aplicativo y web services').",
   },
   {
-    patron: /no autorizado|not authorized|computador|wsfe.*autoriz|delegaci/i,
+    patron: /no autorizado|not authorized|computador|wsfe.*autoriz|delegaci|representa/i,
     mensaje:
-      "Tu CUIT no está autorizado para usar el web service de facturación (WSFE). " +
-      "Entrá a ARCA → Administrador de Relaciones de Clave Fiscal → Nueva relación → " +
-      "Web Services → Facturación Electrónica, y asociá tu certificado.",
+      "Tu CUIT todavía no está autorizado para usar el web service de facturación (WSFE). " +
+      "Entrá a ARCA → Administrador de Relaciones de Clave Fiscal → Nueva Relación → " +
+      "ARCA → WebServices → Facturación Electrónica, y autorizá el CUIT de facturá. " +
+      "La delegación puede tardar hasta 24 hs en impactar.",
   },
   {
     patron: /token|ta\.xml|login|wsaa/i,
@@ -60,6 +61,125 @@ export interface ResultadoEmision {
   error?: string;
 }
 
+interface NegocioARCA {
+  id: string;
+  cuit: string | null;
+  punto_venta: number | null;
+  condicion_iva: string;
+  arca_modo?: string | null;
+}
+
+// Resuelve las credenciales según el modo del negocio:
+// - 'delegado' (default): certificado ÚNICO de la plataforma (env vars) +
+//   CUIT del cliente en los requests. El cliente solo delega el WS en ARCA.
+// - 'certificado_propio': CSR/cert por negocio en arca_credenciales.
+async function credencialesParaNegocio(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  negocio: NegocioARCA
+): Promise<{ keyPem?: string; certPem?: string; error?: string }> {
+  if (negocio.arca_modo === "certificado_propio") {
+    const { data: cred } = await admin
+      .from("arca_credenciales")
+      .select("key_pem, cert_pem")
+      .eq("negocio_id", negocio.id)
+      .maybeSingle();
+
+    if (!cred?.key_pem || !cred?.cert_pem) {
+      return {
+        error:
+          "Faltan las credenciales de ARCA. Completá el asistente de certificado propio en Configuración → ARCA.",
+      };
+    }
+    return { keyPem: cred.key_pem, certPem: cred.cert_pem };
+  }
+
+  // Modo delegado: certificado de la plataforma desde el entorno.
+  // En Netlify los PEM multilinea suelen cargarse con \n escapados.
+  const keyPem = process.env.PLATAFORMA_AFIP_KEY?.replace(/\\n/g, "\n");
+  const certPem = process.env.PLATAFORMA_AFIP_CERT?.replace(/\\n/g, "\n");
+  if (!keyPem || !certPem) {
+    return {
+      error:
+        "La plataforma no tiene configurado su certificado de ARCA " +
+        "(PLATAFORMA_AFIP_KEY / PLATAFORMA_AFIP_CERT). Contactá a soporte.",
+    };
+  }
+  return { keyPem, certPem };
+}
+
+function clienteAfip(keyPem: string, certPem: string, cuit: string) {
+  return new Afip({
+    key: keyPem,
+    cert: certPem,
+    cuit: Number(String(cuit).replace(/[^\d]/g, "")),
+    production: process.env.AFIP_MODE === "production",
+    // Serverless: el único filesystem escribible en Netlify Functions es /tmp
+    ticketPath: "/tmp",
+  });
+}
+
+export interface ResultadoPrueba {
+  ok: boolean;
+  detalle?: string;
+  error?: string;
+}
+
+// Prueba la conexión con ARCA para un negocio: autentica en WSAA y consulta
+// el último comprobante del punto de venta. Si funciona, la delegación (o el
+// certificado propio) está operativa; marca arca_verificado_en.
+export async function probarConexionARCA(negocioId: string): Promise<ResultadoPrueba> {
+  const admin = createSupabaseAdminClient();
+
+  const { data: negocio } = await admin
+    .from("negocios")
+    .select("id, cuit, punto_venta, condicion_iva, arca_modo")
+    .eq("id", negocioId)
+    .maybeSingle();
+
+  if (!negocio) return { ok: false, error: "Negocio no encontrado" };
+
+  const cuit = (negocio.cuit ?? "").replace(/[^\d]/g, "");
+  if (cuit.length !== 11) {
+    return {
+      ok: false,
+      error: "Cargá el CUIT del negocio (11 dígitos) en Configuración → Negocio antes de probar.",
+    };
+  }
+
+  const cred = await credencialesParaNegocio(admin, negocio);
+  if (cred.error || !cred.keyPem || !cred.certPem) {
+    return { ok: false, error: cred.error ?? "Credenciales incompletas" };
+  }
+
+  try {
+    const afip = clienteAfip(cred.keyPem, cred.certPem, cuit);
+    const puntoVenta = negocio.punto_venta ?? 1;
+    const tipoPrueba =
+      negocio.condicion_iva === "monotributo"
+        ? CODIGO_COMPROBANTE.C
+        : CODIGO_COMPROBANTE.B;
+
+    // getLastVoucher pasa por WSAA + WSFE: valida certificado, delegación
+    // y punto de venta en una sola llamada
+    const ultimo = await afip.electronicBillingService.getLastVoucher(
+      puntoVenta,
+      tipoPrueba
+    );
+
+    await admin
+      .from("negocios")
+      .update({ arca_verificado_en: new Date().toISOString() })
+      .eq("id", negocioId);
+
+    return {
+      ok: true,
+      detalle: `Conexión OK. Último comprobante del punto de venta ${puntoVenta}: N° ${ultimo.CbteNro}.`,
+    };
+  } catch (error) {
+    return { ok: false, error: mensajeErrorARCA(error) };
+  }
+}
+
 // Emite una factura existente (en borrador) contra WSFE de ARCA/AFIP.
 // Corre solo en servidor: lee credenciales con service_role y actualiza estado.
 export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmision> {
@@ -67,7 +187,9 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
 
   const { data: factura, error: errFactura } = await admin
     .from("facturas")
-    .select("*, clientes(nombre, cuit_dni), negocios(id, cuit, punto_venta, condicion_iva)")
+    .select(
+      "*, clientes(nombre, cuit_dni), negocios(id, cuit, punto_venta, condicion_iva, arca_modo)"
+    )
     .eq("id", facturaId)
     .single();
 
@@ -88,30 +210,13 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
     return await marcarError(admin, facturaId, "Configurá el CUIT del negocio en Configuración antes de emitir.");
   }
 
-  const { data: cred } = await admin
-    .from("arca_credenciales")
-    .select("key_pem, cert_pem")
-    .eq("negocio_id", negocio.id)
-    .maybeSingle();
-
-  if (!cred?.key_pem || !cred?.cert_pem) {
-    return await marcarError(
-      admin,
-      facturaId,
-      "Faltan las credenciales de ARCA. Completá el asistente en Configuración → ARCA."
-    );
+  const cred = await credencialesParaNegocio(admin, negocio);
+  if (cred.error || !cred.keyPem || !cred.certPem) {
+    return await marcarError(admin, facturaId, cred.error ?? "Credenciales incompletas");
   }
 
   try {
-    const production = process.env.AFIP_MODE === "production";
-    const afip = new Afip({
-      key: cred.key_pem,
-      cert: cred.cert_pem,
-      cuit: Number(String(negocio.cuit).replace(/[^\d]/g, "")),
-      production,
-      // Serverless: el único filesystem escribible en Netlify Functions es /tmp
-      ticketPath: "/tmp",
-    });
+    const afip = clienteAfip(cred.keyPem, cred.certPem, negocio.cuit);
 
     const cbteTipo = CODIGO_COMPROBANTE[factura.tipo];
     const cuitDni = (factura.clientes?.cuit_dni ?? "").replace(/[^\d]/g, "");

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Building2,
   ShieldCheck,
@@ -10,6 +11,8 @@ import {
   ExternalLink,
   Copy,
   Check,
+  Plug,
+  RefreshCw,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/useAuth";
@@ -26,7 +29,19 @@ const TABS: { id: Tab; label: string; icon: typeof Building2 }[] = [
 ];
 
 export default function ConfiguracionPage() {
-  const [tab, setTab] = useState<Tab>("negocio");
+  return (
+    <Suspense fallback={null}>
+      <Configuracion />
+    </Suspense>
+  );
+}
+
+function Configuracion() {
+  const searchParams = useSearchParams();
+  // Volver del OAuth de MP aterriza directo en el tab correspondiente
+  const [tab, setTab] = useState<Tab>(
+    searchParams.get("mp") || searchParams.get("mp_error") ? "mercadopago" : "negocio"
+  );
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -154,6 +169,199 @@ function TabNegocio() {
 /* ============================ Tab ARCA ============================ */
 
 function TabArca() {
+  const { negocio, refrescar } = useAuth();
+  const [probando, setProbando] = useState(false);
+  const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [copiado, setCopiado] = useState(false);
+
+  const cuitPlataforma = process.env.NEXT_PUBLIC_PLATAFORMA_CUIT ?? "";
+  const modoPropio = negocio?.arca_modo === "certificado_propio";
+
+  async function copiarCuit() {
+    await navigator.clipboard.writeText(cuitPlataforma);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  }
+
+  async function probar() {
+    setProbando(true);
+    setResultado(null);
+    try {
+      const res = await fetch("/api/arca/probar", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "La prueba falló");
+      setResultado({ ok: true, texto: data.detalle ?? "Conexión OK" });
+      refrescar();
+    } catch (err) {
+      setResultado({
+        ok: false,
+        texto: err instanceof Error ? err.message : "La prueba falló",
+      });
+    } finally {
+      setProbando(false);
+    }
+  }
+
+  async function cambiarModo(modo: "delegado" | "certificado_propio") {
+    if (!negocio) return;
+    await supabase.from("negocios").update({ arca_modo: modo }).eq("id", negocio.id);
+    refrescar();
+  }
+
+  return (
+    <div className="space-y-4">
+      {negocio?.arca_verificado_en && (
+        <div className="rounded-card border border-status-ok/30 bg-status-ok/10 px-4 py-3 text-[13px] text-status-ok">
+          ✓ Conexión con ARCA verificada el{" "}
+          {new Date(negocio.arca_verificado_en).toLocaleDateString("es-AR")}. Ya podés
+          emitir facturas electrónicas.
+        </div>
+      )}
+
+      {!modoPropio && (
+        <>
+          {/* Paso 1: autorizar en ARCA */}
+          <Card>
+            <PasoHeader numero={1} titulo="Autorizá a facturá. en ARCA" ok={Boolean(negocio?.arca_verificado_en)} />
+            <p className="mb-3 text-[12px] text-text-secondary">
+              No hace falta generar certificados ni subir archivos: solo autorizás a
+              facturá. a emitir comprobantes por vos. Se hace una única vez y tarda 2
+              minutos.
+            </p>
+            <div className="mb-3 flex items-center gap-2">
+              <div className="min-w-0 flex-1 rounded-btn border border-line bg-[#1A2235] px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wide text-text-muted">
+                  CUIT de facturá. (copialo para el paso 4)
+                </p>
+                <p className="text-[14px] font-semibold tabular-nums text-accent-light">
+                  {cuitPlataforma || "— configurar NEXT_PUBLIC_PLATAFORMA_CUIT —"}
+                </p>
+              </div>
+              <Button type="button" variant="ghost" onClick={copiarCuit} disabled={!cuitPlataforma}>
+                {copiado ? <Check size={14} /> : <Copy size={14} />}
+                {copiado ? "Copiado" : "Copiar"}
+              </Button>
+            </div>
+            <ol className="ml-4 list-decimal space-y-1.5 text-[12px] text-text-secondary">
+              <li>
+                Entrá a{" "}
+                <a
+                  href="https://www.arca.gob.ar"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-brand-hover hover:underline"
+                >
+                  arca.gob.ar <ExternalLink size={11} />
+                </a>{" "}
+                con tu Clave Fiscal (nivel 3).
+              </li>
+              <li>
+                Abrí <strong>“Administrador de Relaciones de Clave Fiscal”</strong> y tocá{" "}
+                <strong>“Nueva Relación”</strong>.
+              </li>
+              <li>
+                Elegí <strong>ARCA → WebServices → Facturación Electrónica</strong>.
+              </li>
+              <li>
+                En <strong>“Representante”</strong> pegá el CUIT de facturá. y confirmá.
+              </li>
+            </ol>
+            <p className="mt-3 rounded-btn bg-white/5 px-3 py-2 text-[11px] text-text-muted">
+              ⏱ La autorización puede tardar <strong>hasta 24 hs</strong> en impactar en
+              los sistemas de ARCA.
+            </p>
+          </Card>
+
+          {/* Paso 2: punto de venta */}
+          <Card>
+            <PasoHeader numero={2} titulo="Creá el punto de venta para web services" ok={Boolean(negocio?.arca_verificado_en)} />
+            <ol className="ml-4 list-decimal space-y-1.5 text-[12px] text-text-secondary">
+              <li>
+                En ARCA, entrá a{" "}
+                <strong>“Administración de puntos de venta y domicilios”</strong>.
+              </li>
+              <li>
+                Agregá un punto de venta nuevo con el sistema{" "}
+                <strong>“RECE para aplicativo y web services”</strong> (o “Factura en
+                línea - Monotributo” si te lo pide así).
+              </li>
+              <li>
+                Cargá el número que te asignó en{" "}
+                <strong>Configuración → Negocio → Punto de venta</strong> (junto con tu
+                CUIT).
+              </li>
+            </ol>
+          </Card>
+
+          {/* Paso 3: probar */}
+          <Card>
+            <PasoHeader numero={3} titulo="Probá la conexión" ok={Boolean(negocio?.arca_verificado_en)} />
+            <p className="mb-3 text-[12px] text-text-secondary">
+              Hacemos una consulta real a ARCA con tu CUIT para verificar que la
+              autorización y el punto de venta estén operativos.
+            </p>
+            <Button onClick={probar} disabled={probando}>
+              <Plug size={14} />
+              {probando ? "Consultando ARCA…" : "Probar conexión"}
+            </Button>
+          </Card>
+        </>
+      )}
+
+      {modoPropio && (
+        <CertificadoPropio
+          verificado={Boolean(negocio?.arca_verificado_en)}
+          onProbar={probar}
+          probando={probando}
+        />
+      )}
+
+      {resultado && (
+        <p
+          className={`rounded-btn px-3 py-2 text-[12px] ${
+            resultado.ok
+              ? "bg-status-ok/15 text-status-ok"
+              : "bg-status-error/15 text-status-error"
+          }`}
+        >
+          {resultado.texto}
+        </p>
+      )}
+
+      {/* Cambio de modo */}
+      <details className="rounded-card border border-line bg-surface px-5 py-4">
+        <summary className="cursor-pointer text-[12px] text-text-secondary">
+          Avanzado: {modoPropio ? "volver al modo simple (delegación)" : "usar certificado propio"}
+        </summary>
+        <p className="mt-3 text-[12px] text-text-secondary">
+          {modoPropio
+            ? "El modo simple usa el certificado de facturá.: solo tenés que autorizar nuestro CUIT en ARCA, sin archivos."
+            : "Si preferís que la emisión use un certificado digital propio de tu CUIT (en lugar de la autorización a facturá.), podés generarlo acá. Requiere descargar un CSR, subirlo a ARCA y cargar el .crt."}
+        </p>
+        <Button
+          type="button"
+          variant="ghost"
+          className="mt-3"
+          onClick={() => cambiarModo(modoPropio ? "delegado" : "certificado_propio")}
+        >
+          {modoPropio ? "Usar modo simple" : "Usar certificado propio"}
+        </Button>
+      </details>
+    </div>
+  );
+}
+
+/* ---------- Modo avanzado: certificado propio (CSR + .crt) ---------- */
+
+function CertificadoPropio({
+  verificado,
+  onProbar,
+  probando,
+}: {
+  verificado: boolean;
+  onProbar: () => void;
+  probando: boolean;
+}) {
   const [estado, setEstado] = useState({ tiene_clave: false, tiene_cert: false });
   const [ocupado, setOcupado] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -178,7 +386,6 @@ function TabArca() {
         const data = await res.json();
         throw new Error(data.error ?? "No se pudo generar el CSR");
       }
-      // Descargar el CSR como archivo
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -210,7 +417,7 @@ function TabArca() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "No se pudo guardar el certificado");
-      setMensaje("¡Listo! Ya podés emitir facturas electrónicas.");
+      setMensaje("Certificado guardado. Probá la conexión para verificar.");
       cargarEstado();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error subiendo el certificado");
@@ -225,19 +432,12 @@ function TabArca() {
 
   return (
     <div className="space-y-4">
-      {paso3Ok && (
-        <div className="rounded-card border border-status-ok/30 bg-status-ok/10 px-4 py-3 text-[13px] text-status-ok">
-          ✓ Credenciales de ARCA configuradas. Ya podés emitir facturas electrónicas.
-        </div>
-      )}
-
-      {/* Paso 1 */}
       <Card>
         <PasoHeader numero={1} titulo="Generá tu solicitud de certificado (CSR)" ok={paso1Ok} />
         <p className="mb-3 text-[12px] text-text-secondary">
           Generamos una clave RSA 2048 y la guardamos cifrada en el servidor (nunca pasa
-          por tu navegador). Descargás el archivo <code className="text-accent-light">.csr</code>{" "}
-          para presentarlo en ARCA.
+          por tu navegador). Descargás el archivo{" "}
+          <code className="text-accent-light">.csr</code> para presentarlo en ARCA.
         </p>
         <Button onClick={generarCSR} disabled={ocupado} variant={paso1Ok ? "ghost" : "brand"}>
           <Download size={14} />
@@ -245,7 +445,6 @@ function TabArca() {
         </Button>
       </Card>
 
-      {/* Paso 2 */}
       <Card>
         <PasoHeader numero={2} titulo="Subí el CSR a ARCA" ok={paso3Ok} />
         <ol className="ml-4 list-decimal space-y-1.5 text-[12px] text-text-secondary">
@@ -268,22 +467,17 @@ function TabArca() {
             Creá un alias nuevo: te sugerimos{" "}
             <code className="rounded bg-[#1A2235] px-1.5 py-0.5 text-accent-light">facturacion</code>.
           </li>
-          <li>Subí el archivo <code className="text-accent-light">facturacion.csr</code> que descargaste en el paso 1.</li>
+          <li>Subí el archivo <code className="text-accent-light">facturacion.csr</code> del paso 1.</li>
           <li>Descargá el certificado <code className="text-accent-light">.crt</code> que te genera ARCA.</li>
           <li>
-            En <strong>“Administrador de Relaciones de Clave Fiscal”</strong>, asociá el alias al
-            servicio <strong>“Facturación Electrónica”</strong> (wsfe).
+            En <strong>“Administrador de Relaciones de Clave Fiscal”</strong>, asociá el
+            alias al servicio <strong>“Facturación Electrónica”</strong> (wsfe).
           </li>
         </ol>
       </Card>
 
-      {/* Paso 3 */}
       <Card>
         <PasoHeader numero={3} titulo="Subí el certificado (.crt)" ok={paso3Ok} />
-        <p className="mb-3 text-[12px] text-text-secondary">
-          El certificado se guarda junto a tu clave y se usa solo desde el servidor para
-          hablar con ARCA.
-        </p>
         <label
           className={`inline-flex cursor-pointer items-center gap-2 rounded-btn px-4 py-2 text-[13px] font-medium transition-colors ${
             paso1Ok
@@ -304,6 +498,14 @@ function TabArca() {
         {!paso1Ok && (
           <p className="mt-2 text-[11px] text-text-muted">Primero completá el paso 1.</p>
         )}
+      </Card>
+
+      <Card>
+        <PasoHeader numero={4} titulo="Probá la conexión" ok={verificado} />
+        <Button onClick={onProbar} disabled={probando || !paso3Ok}>
+          <Plug size={14} />
+          {probando ? "Consultando ARCA…" : "Probar conexión"}
+        </Button>
       </Card>
 
       {mensaje && (
@@ -339,116 +541,206 @@ function PasoHeader({ numero, titulo, ok }: { numero: number; titulo: string; ok
 
 function TabMercadoPago() {
   const { negocio } = useAuth();
+  const searchParams = useSearchParams();
+  const [config, setConfig] = useState<{
+    conectado: boolean;
+    manual: boolean;
+    mp_user_id: string | null;
+    expira_en: string | null;
+    auto_facturar: boolean;
+  } | null>(null);
   const [accessToken, setAccessToken] = useState("");
-  const [autoFacturar, setAutoFacturar] = useState(false);
-  const [tieneToken, setTieneToken] = useState(false);
   const [guardado, setGuardado] = useState(false);
   const [copiado, setCopiado] = useState(false);
 
-  useEffect(() => {
+  const mpOk = searchParams.get("mp") === "conectado";
+  const mpError = searchParams.get("mp_error");
+
+  const cargar = useCallback(async () => {
     if (!negocio) return;
-    supabase
+    const { data } = await supabase
       .from("mercadopago_config")
-      .select("auto_facturar, access_token")
+      .select("auto_facturar, access_token, refresh_token, mp_user_id, expira_en")
       .eq("negocio_id", negocio.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          setAutoFacturar(data.auto_facturar);
-          setTieneToken(Boolean(data.access_token));
-        }
-      });
+      .maybeSingle();
+    setConfig({
+      conectado: Boolean(data?.access_token),
+      // Sin refresh_token = token pegado a mano (flujo manual)
+      manual: Boolean(data?.access_token) && !data?.refresh_token,
+      mp_user_id: data?.mp_user_id ?? null,
+      expira_en: data?.expira_en ?? null,
+      auto_facturar: data?.auto_facturar ?? false,
+    });
   }, [negocio]);
 
-  const webhookUrl = negocio
-    ? `${process.env.NEXT_PUBLIC_APP_URL ?? (typeof window !== "undefined" ? window.location.origin : "")}/api/mp/webhook/${negocio.id}`
-    : "";
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
 
-  async function guardar(e: React.FormEvent) {
-    e.preventDefault();
-    if (!negocio) return;
+  async function toggleAutoFacturar() {
+    if (!negocio || !config) return;
+    const nuevo = !config.auto_facturar;
+    setConfig({ ...config, auto_facturar: nuevo });
     await supabase.from("mercadopago_config").upsert({
       negocio_id: negocio.id,
-      auto_facturar: autoFacturar,
-      // Solo pisar el token si escribieron uno nuevo
-      ...(accessToken.trim() ? { access_token: accessToken.trim() } : {}),
+      auto_facturar: nuevo,
       updated_at: new Date().toISOString(),
     });
-    if (accessToken.trim()) setTieneToken(true);
+  }
+
+  async function guardarTokenManual(e: React.FormEvent) {
+    e.preventDefault();
+    if (!negocio || !accessToken.trim()) return;
+    await supabase.from("mercadopago_config").upsert({
+      negocio_id: negocio.id,
+      access_token: accessToken.trim(),
+      refresh_token: null,
+      updated_at: new Date().toISOString(),
+    });
     setAccessToken("");
     setGuardado(true);
     setTimeout(() => setGuardado(false), 2000);
+    cargar();
   }
 
+  const webhookUrlManual = negocio
+    ? `${process.env.NEXT_PUBLIC_APP_URL ?? (typeof window !== "undefined" ? window.location.origin : "")}/api/mp/webhook/${negocio.id}`
+    : "";
+
   async function copiar() {
-    await navigator.clipboard.writeText(webhookUrl);
+    await navigator.clipboard.writeText(webhookUrlManual);
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2000);
   }
 
   return (
     <div className="space-y-4">
+      {mpOk && (
+        <div className="rounded-card border border-status-ok/30 bg-status-ok/10 px-4 py-3 text-[13px] text-status-ok">
+          ✓ ¡Cuenta de Mercado Pago conectada! Los pagos ya llegan a facturá.
+        </div>
+      )}
+      {mpError && (
+        <div className="rounded-card border border-status-error/30 bg-status-error/10 px-4 py-3 text-[13px] text-status-error">
+          No se pudo conectar con Mercado Pago
+          {mpError === "config" && " (la plataforma no tiene configurado MP_CLIENT_ID)"}
+          . Probá de nuevo o contactá a soporte.
+        </div>
+      )}
+
+      {/* Conexión OAuth */}
       <Card>
-        <form onSubmit={guardar} className="space-y-4">
+        <h2 className="mb-2 text-[13px] font-semibold">Cuenta de Mercado Pago</h2>
+
+        {config?.conectado && !config.manual ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-[13px] text-status-ok">
+              <Check size={15} />
+              Cuenta conectada
+              {config.mp_user_id && (
+                <span className="text-text-muted">(ID {config.mp_user_id})</span>
+              )}
+            </div>
+            {config.expira_en && (
+              <p className="text-[11px] text-text-muted">
+                Autorización válida hasta el{" "}
+                {new Date(config.expira_en).toLocaleDateString("es-AR")} — se renueva
+                sola.
+              </p>
+            )}
+            <a
+              href="/api/mp/oauth/conectar"
+              className="inline-flex items-center gap-2 rounded-btn border border-line bg-white/5 px-4 py-2 text-[13px] font-medium text-text-secondary transition-colors hover:bg-white/10"
+            >
+              <RefreshCw size={14} />
+              Reconectar cuenta
+            </a>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-[12px] text-text-secondary">
+              Conectá tu cuenta con un click: te llevamos a Mercado Pago, iniciás sesión,
+              autorizás y listo. Sin copiar credenciales ni configurar nada más.
+            </p>
+            <a
+              href="/api/mp/oauth/conectar"
+              className="inline-flex items-center gap-2 rounded-btn bg-[#009EE3] px-4 py-2.5 text-[13px] font-semibold text-white transition-all hover:brightness-110"
+            >
+              <Plug size={15} />
+              Conectar con Mercado Pago
+            </a>
+            {config?.manual && (
+              <p className="text-[11px] text-status-warn">
+                Ahora estás usando un Access Token manual. Al conectar por acá pasás al
+                modo automático (recomendado).
+              </p>
+            )}
+          </div>
+        )}
+      </Card>
+
+      {/* Auto-facturación */}
+      <Card>
+        <label className="flex cursor-pointer items-center justify-between">
+          <div>
+            <p className="text-[13px] font-medium">Facturación automática</p>
+            <p className="text-[11px] text-text-muted">
+              Cada pago aprobado genera y emite la factura solo.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={config?.auto_facturar ?? false}
+            onClick={toggleAutoFacturar}
+            className={`relative h-6 w-11 rounded-full transition-colors ${
+              config?.auto_facturar ? "bg-brand" : "bg-white/10"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+                config?.auto_facturar ? "left-[22px]" : "left-0.5"
+              }`}
+            />
+          </button>
+        </label>
+      </Card>
+
+      {/* Modo manual (avanzado) */}
+      <details className="rounded-card border border-line bg-surface px-5 py-4">
+        <summary className="cursor-pointer text-[12px] text-text-secondary">
+          Avanzado: usar un Access Token manual
+        </summary>
+        <form onSubmit={guardarTokenManual} className="mt-4 space-y-3">
           <Input
             id="mp-token"
-            label={`Access Token de Mercado Pago${tieneToken ? " (ya configurado — pegá uno nuevo para reemplazarlo)" : ""}`}
+            label="Access Token de producción"
             type="password"
             placeholder="APP_USR-…"
             value={accessToken}
             onChange={(e) => setAccessToken(e.target.value)}
             autoComplete="off"
           />
-          <p className="-mt-2 text-[11px] text-text-muted">
-            Lo encontrás en Mercado Pago → Tus integraciones → Credenciales de producción.
+          <p className="text-[11px] text-text-muted">
+            Lo encontrás en Mercado Pago → Tus integraciones → Credenciales de
+            producción. Con este modo tenés que configurar el webhook a mano:
           </p>
-
-          <label className="flex cursor-pointer items-center justify-between rounded-btn border border-line bg-[#1A2235] px-4 py-3">
-            <div>
-              <p className="text-[13px] font-medium">Facturación automática</p>
-              <p className="text-[11px] text-text-muted">
-                Cada pago aprobado genera y emite la factura solo.
-              </p>
+          {config?.manual && webhookUrlManual && (
+            <div className="flex items-center gap-2">
+              <code className="min-w-0 flex-1 truncate rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[12px] text-accent-light">
+                {webhookUrlManual}
+              </code>
+              <Button type="button" variant="ghost" onClick={copiar}>
+                {copiado ? <Check size={14} /> : <Copy size={14} />}
+                {copiado ? "Copiado" : "Copiar"}
+              </Button>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={autoFacturar}
-              onClick={() => setAutoFacturar((v) => !v)}
-              className={`relative h-6 w-11 rounded-full transition-colors ${
-                autoFacturar ? "bg-brand" : "bg-white/10"
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
-                  autoFacturar ? "left-[22px]" : "left-0.5"
-                }`}
-              />
-            </button>
-          </label>
-
-          <Button type="submit">{guardado ? "✓ Guardado" : "Guardar"}</Button>
+          )}
+          <Button type="submit" variant="ghost" disabled={!accessToken.trim()}>
+            {guardado ? "✓ Guardado" : "Guardar token manual"}
+          </Button>
         </form>
-      </Card>
-
-      {tieneToken && (
-        <Card>
-          <h2 className="mb-2 text-[13px] font-semibold">URL del webhook</h2>
-          <p className="mb-3 text-[12px] text-text-secondary">
-            Pegá esta URL en Mercado Pago → Tus integraciones → tu aplicación →{" "}
-            <strong>Webhooks</strong>, y activá el evento <strong>Pagos</strong>.
-          </p>
-          <div className="flex items-center gap-2">
-            <code className="min-w-0 flex-1 truncate rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[12px] text-accent-light">
-              {webhookUrl}
-            </code>
-            <Button type="button" variant="ghost" onClick={copiar}>
-              {copiado ? <Check size={14} /> : <Copy size={14} />}
-              {copiado ? "Copiado" : "Copiar"}
-            </Button>
-          </div>
-        </Card>
-      )}
+      </details>
     </div>
   );
 }
