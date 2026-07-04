@@ -38,3 +38,26 @@ input:-webkit-autofill {
   -webkit-box-shadow: 0 0 0 1000px #1a2235 inset;
   -webkit-text-fill-color: #f1f5f9;
 }
+
+/* Barra animada del splash de carga */
+@keyframes splash {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.animate-splash {
+  animation: splash 1.1s ease-in-out infinite;
+}
+
+/* En mobile, inputs con menos de 16px hacen que iOS haga zoom al enfocar */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

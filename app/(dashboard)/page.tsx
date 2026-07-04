@@ -16,6 +16,7 @@ import { supabase } from "@/lib/supabase";
 import { Card } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { EstadoBadge } from "@/components/ui/EstadoBadge";
+import { Cargando } from "@/components/ui/Cargando";
 import { formatoPesos, formatoNumeroFactura, type ResumenDashboard } from "@/lib/types";
 
 export default function DashboardPage() {
@@ -71,7 +72,9 @@ export default function DashboardPage() {
       </header>
 
       {/* Stats 2x2 en mobile, 4 columnas en desktop */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div
+        className={`grid grid-cols-2 gap-3 lg:grid-cols-4 ${!resumen ? "animate-pulse" : ""}`}
+      >
         {stats.map(({ label, valor, sub, icon: Icon, color }) => (
           <Card key={label} className="p-4">
             <div className="flex items-center justify-between">
@@ -102,6 +105,9 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="h-[220px]">
+          {!resumen ? (
+            <Cargando className="h-full" />
+          ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={resumen?.semana ?? []} barGap={2}>
               <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
@@ -138,6 +144,7 @@ export default function DashboardPage() {
               <Bar dataKey="auto_mp" fill="#14B8A6" radius={[4, 4, 0, 0]} maxBarSize={28} />
             </BarChart>
           </ResponsiveContainer>
+          )}
         </div>
       </Card>
 
@@ -155,11 +162,12 @@ export default function DashboardPage() {
           </Link>
         </div>
         <div className="divide-y divide-line">
+          {!resumen && <Cargando />}
           {(resumen?.ultimas ?? []).map((f) => (
             <Link
               key={f.id}
               href="/facturas"
-              className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-white/[0.02]"
+              className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.02] sm:px-5"
             >
               <Avatar nombre={f.cliente_nombre} auto={f.origen === "mercadopago"} />
               <div className="min-w-0 flex-1">

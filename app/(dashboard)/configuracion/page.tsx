@@ -48,7 +48,7 @@ function Configuracion() {
     <div className="mx-auto max-w-2xl space-y-5">
       <h1 className="text-[15px] font-semibold">Configuración</h1>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}

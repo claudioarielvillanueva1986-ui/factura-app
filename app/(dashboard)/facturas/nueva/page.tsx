@@ -256,12 +256,12 @@ export default function NuevaFacturaPage() {
         <div className="space-y-2">
           <p className="text-[12px] font-medium text-text-secondary">Ítems</p>
           {items.map((it, i) => (
-            <div key={i} className="flex items-start gap-2">
+            <div key={i} className="flex flex-wrap items-start gap-2">
               <input
                 placeholder="Descripción"
                 value={it.descripcion}
                 onChange={(e) => setItem(i, "descripcion", e.target.value)}
-                className="min-w-0 flex-1 rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px] placeholder:text-text-muted"
+                className="min-w-[160px] flex-1 rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px] placeholder:text-text-muted"
               />
               <input
                 type="number"

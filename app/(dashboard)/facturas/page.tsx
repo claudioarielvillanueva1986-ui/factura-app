@@ -8,6 +8,7 @@ import { enviarPorWhatsApp } from "@/lib/whatsapp";
 import { Card } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { EstadoBadge } from "@/components/ui/EstadoBadge";
+import { Cargando } from "@/components/ui/Cargando";
 import { useAuth } from "@/lib/useAuth";
 import {
   formatoPesos,
@@ -105,7 +106,7 @@ export default function FacturasPage() {
             {label}
           </button>
         ))}
-        <div className="relative ml-auto">
+        <div className="relative w-full sm:ml-auto sm:w-[220px]">
           <Search
             size={14}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
@@ -114,7 +115,7 @@ export default function FacturasPage() {
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Cliente o número…"
-            className="w-[220px] rounded-btn border border-line bg-[#1A2235] py-2 pl-8 pr-3 text-[13px] placeholder:text-text-muted"
+            className="w-full rounded-btn border border-line bg-[#1A2235] py-2 pl-8 pr-3 text-[13px] placeholder:text-text-muted"
           />
         </div>
       </div>
@@ -125,11 +126,14 @@ export default function FacturasPage() {
             const nombre = f.clientes?.nombre ?? "Consumidor Final";
             const puedeWA = f.estado === "emitida" && !f.wa_enviado;
             return (
-              <div key={f.id} className="flex items-center gap-3 px-5 py-3">
+              <div
+                key={f.id}
+                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-5"
+              >
                 <Avatar nombre={nombre} auto={f.origen === "mercadopago"} />
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 basis-36">
                   <p className="truncate text-[13px] font-medium">{nombre}</p>
-                  <p className="text-[11px] text-text-muted">
+                  <p className="truncate text-[11px] text-text-muted">
                     {formatoNumeroFactura(f.tipo, f.numero, negocio?.punto_venta ?? 1)}
                     {" · "}
                     {new Date(`${f.fecha}T00:00:00`).toLocaleDateString("es-AR")}
@@ -138,22 +142,25 @@ export default function FacturasPage() {
                     )}
                   </p>
                 </div>
-                <span className="text-[13px] font-semibold tabular-nums">
-                  {formatoPesos(f.total)}
-                </span>
-                <EstadoBadge estado={f.estado} origen={f.origen} />
-                {puedeWA && (
-                  <button
-                    onClick={() => onWhatsApp(f)}
-                    title="Enviar por WhatsApp"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-btn bg-whatsapp text-[#052e16] transition-all hover:brightness-110"
-                  >
-                    <MessageCircle size={15} />
-                  </button>
-                )}
+                <div className="ml-auto flex items-center gap-2">
+                  <span className="text-[13px] font-semibold tabular-nums">
+                    {formatoPesos(f.total)}
+                  </span>
+                  <EstadoBadge estado={f.estado} origen={f.origen} />
+                  {puedeWA && (
+                    <button
+                      onClick={() => onWhatsApp(f)}
+                      title="Enviar por WhatsApp"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-btn bg-whatsapp text-[#052e16] transition-all hover:brightness-110"
+                    >
+                      <MessageCircle size={15} />
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
+          {cargando && <Cargando />}
           {!cargando && visibles.length === 0 && (
             <p className="px-5 py-10 text-center text-[13px] text-text-muted">
               No hay facturas para este filtro.
