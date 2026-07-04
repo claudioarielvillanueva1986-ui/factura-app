@@ -43,6 +43,7 @@ Supabase o `supabase db push`):
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role (solo servidor: ARCA, webhook MP) |
 | `AFIP_MODE` | `production` u `homologacion` (WSDL de testing) |
 | `NEXT_PUBLIC_PLATAFORMA_CUIT` | CUIT de la plataforma que los clientes autorizan en ARCA |
+| `NEXT_PUBLIC_PLATAFORMA_ALIAS` | Alias del certificado de la plataforma (ej: `factura-prod`) |
 | `PLATAFORMA_AFIP_KEY` / `PLATAFORMA_AFIP_CERT` | Clave + certificado ÚNICOS de la plataforma (modo delegado) |
 | `MP_CLIENT_ID` / `MP_CLIENT_SECRET` | Credenciales de la aplicación de Mercado Pago (OAuth) |
 | `NEXT_PUBLIC_APP_URL` | URL pública del deploy (OAuth y webhooks) |
