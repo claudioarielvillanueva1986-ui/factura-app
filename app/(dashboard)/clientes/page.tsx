@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Avatar } from "@/components/ui/Avatar";
+import { Cargando } from "@/components/ui/Cargando";
 import type { Cliente } from "@/lib/types";
 
 const FORM_VACIO = { nombre: "", cuit_dni: "", email: "", telefono: "" };
@@ -19,11 +20,13 @@ export default function ClientesPage() {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [form, setForm] = useState(FORM_VACIO);
   const [guardando, setGuardando] = useState(false);
+  const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     const { data } = await supabase.from("clientes").select("*").order("nombre");
     setClientes((data as Cliente[]) ?? []);
+    setCargando(false);
   }, []);
 
   useEffect(() => {
@@ -106,7 +109,8 @@ export default function ClientesPage() {
               </span>
             </div>
           ))}
-          {visibles.length === 0 && (
+          {cargando && <Cargando />}
+          {!cargando && visibles.length === 0 && (
             <p className="px-5 py-10 text-center text-[13px] text-text-muted">
               {busqueda ? "Sin resultados." : "Todavía no cargaste clientes."}
             </p>
