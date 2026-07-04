@@ -19,6 +19,7 @@ import { useAuth } from "@/lib/useAuth";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { WizardDelegacion } from "@/components/arca/WizardDelegacion";
 
 type Tab = "negocio" | "arca" | "mercadopago";
 
@@ -170,37 +171,7 @@ function TabNegocio() {
 
 function TabArca() {
   const { negocio, refrescar } = useAuth();
-  const [probando, setProbando] = useState(false);
-  const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
-  const [copiado, setCopiado] = useState(false);
-
-  const cuitPlataforma = process.env.NEXT_PUBLIC_PLATAFORMA_CUIT ?? "";
   const modoPropio = negocio?.arca_modo === "certificado_propio";
-
-  async function copiarCuit() {
-    await navigator.clipboard.writeText(cuitPlataforma);
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 2000);
-  }
-
-  async function probar() {
-    setProbando(true);
-    setResultado(null);
-    try {
-      const res = await fetch("/api/arca/probar", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "La prueba falló");
-      setResultado({ ok: true, texto: data.detalle ?? "Conexión OK" });
-      refrescar();
-    } catch (err) {
-      setResultado({
-        ok: false,
-        texto: err instanceof Error ? err.message : "La prueba falló",
-      });
-    } finally {
-      setProbando(false);
-    }
-  }
 
   async function cambiarModo(modo: "delegado" | "certificado_propio") {
     if (!negocio) return;
@@ -210,123 +181,9 @@ function TabArca() {
 
   return (
     <div className="space-y-4">
-      {negocio?.arca_verificado_en && (
-        <div className="rounded-card border border-status-ok/30 bg-status-ok/10 px-4 py-3 text-[13px] text-status-ok">
-          ✓ Conexión con ARCA verificada el{" "}
-          {new Date(negocio.arca_verificado_en).toLocaleDateString("es-AR")}. Ya podés
-          emitir facturas electrónicas.
-        </div>
-      )}
+      {!modoPropio && <WizardDelegacion />}
 
-      {!modoPropio && (
-        <>
-          {/* Paso 1: autorizar en ARCA */}
-          <Card>
-            <PasoHeader numero={1} titulo="Autorizá a facturá. en ARCA" ok={Boolean(negocio?.arca_verificado_en)} />
-            <p className="mb-3 text-[12px] text-text-secondary">
-              No hace falta generar certificados ni subir archivos: solo autorizás a
-              facturá. a emitir comprobantes por vos. Se hace una única vez y tarda 2
-              minutos.
-            </p>
-            <div className="mb-3 flex items-center gap-2">
-              <div className="min-w-0 flex-1 rounded-btn border border-line bg-[#1A2235] px-3 py-2">
-                <p className="text-[10px] uppercase tracking-wide text-text-muted">
-                  CUIT de facturá. (copialo para el paso 4)
-                </p>
-                <p className="text-[14px] font-semibold tabular-nums text-accent-light">
-                  {cuitPlataforma || "— configurar NEXT_PUBLIC_PLATAFORMA_CUIT —"}
-                </p>
-              </div>
-              <Button type="button" variant="ghost" onClick={copiarCuit} disabled={!cuitPlataforma}>
-                {copiado ? <Check size={14} /> : <Copy size={14} />}
-                {copiado ? "Copiado" : "Copiar"}
-              </Button>
-            </div>
-            <ol className="ml-4 list-decimal space-y-1.5 text-[12px] text-text-secondary">
-              <li>
-                Entrá a{" "}
-                <a
-                  href="https://www.arca.gob.ar"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-brand-hover hover:underline"
-                >
-                  arca.gob.ar <ExternalLink size={11} />
-                </a>{" "}
-                con tu Clave Fiscal (nivel 3).
-              </li>
-              <li>
-                Abrí <strong>“Administrador de Relaciones de Clave Fiscal”</strong> y tocá{" "}
-                <strong>“Nueva Relación”</strong>.
-              </li>
-              <li>
-                Elegí <strong>ARCA → WebServices → Facturación Electrónica</strong>.
-              </li>
-              <li>
-                En <strong>“Representante”</strong> pegá el CUIT de facturá. y confirmá.
-              </li>
-            </ol>
-            <p className="mt-3 rounded-btn bg-white/5 px-3 py-2 text-[11px] text-text-muted">
-              ⏱ La autorización puede tardar <strong>hasta 24 hs</strong> en impactar en
-              los sistemas de ARCA.
-            </p>
-          </Card>
-
-          {/* Paso 2: punto de venta */}
-          <Card>
-            <PasoHeader numero={2} titulo="Creá el punto de venta para web services" ok={Boolean(negocio?.arca_verificado_en)} />
-            <ol className="ml-4 list-decimal space-y-1.5 text-[12px] text-text-secondary">
-              <li>
-                En ARCA, entrá a{" "}
-                <strong>“Administración de puntos de venta y domicilios”</strong>.
-              </li>
-              <li>
-                Agregá un punto de venta nuevo con el sistema{" "}
-                <strong>“RECE para aplicativo y web services”</strong> (o “Factura en
-                línea - Monotributo” si te lo pide así).
-              </li>
-              <li>
-                Cargá el número que te asignó en{" "}
-                <strong>Configuración → Negocio → Punto de venta</strong> (junto con tu
-                CUIT).
-              </li>
-            </ol>
-          </Card>
-
-          {/* Paso 3: probar */}
-          <Card>
-            <PasoHeader numero={3} titulo="Probá la conexión" ok={Boolean(negocio?.arca_verificado_en)} />
-            <p className="mb-3 text-[12px] text-text-secondary">
-              Hacemos una consulta real a ARCA con tu CUIT para verificar que la
-              autorización y el punto de venta estén operativos.
-            </p>
-            <Button onClick={probar} disabled={probando}>
-              <Plug size={14} />
-              {probando ? "Consultando ARCA…" : "Probar conexión"}
-            </Button>
-          </Card>
-        </>
-      )}
-
-      {modoPropio && (
-        <CertificadoPropio
-          verificado={Boolean(negocio?.arca_verificado_en)}
-          onProbar={probar}
-          probando={probando}
-        />
-      )}
-
-      {resultado && (
-        <p
-          className={`rounded-btn px-3 py-2 text-[12px] ${
-            resultado.ok
-              ? "bg-status-ok/15 text-status-ok"
-              : "bg-status-error/15 text-status-error"
-          }`}
-        >
-          {resultado.texto}
-        </p>
-      )}
+      {modoPropio && <CertificadoPropio />}
 
       {/* Cambio de modo */}
       <details className="rounded-card border border-line bg-surface px-5 py-4">
@@ -353,19 +210,35 @@ function TabArca() {
 
 /* ---------- Modo avanzado: certificado propio (CSR + .crt) ---------- */
 
-function CertificadoPropio({
-  verificado,
-  onProbar,
-  probando,
-}: {
-  verificado: boolean;
-  onProbar: () => void;
-  probando: boolean;
-}) {
+function CertificadoPropio() {
+  const { negocio, refrescar } = useAuth();
   const [estado, setEstado] = useState({ tiene_clave: false, tiene_cert: false });
   const [ocupado, setOcupado] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [probando, setProbando] = useState(false);
+  const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
+
+  const verificado = Boolean(negocio?.arca_verificado_en);
+
+  async function onProbar() {
+    setProbando(true);
+    setResultado(null);
+    try {
+      const res = await fetch("/api/arca/probar", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "La prueba falló");
+      setResultado({ ok: true, texto: data.detalle ?? "Conexión OK" });
+      refrescar();
+    } catch (err) {
+      setResultado({
+        ok: false,
+        texto: err instanceof Error ? err.message : "La prueba falló",
+      });
+    } finally {
+      setProbando(false);
+    }
+  }
 
   const cargarEstado = useCallback(async () => {
     const res = await fetch("/api/arca/certificado");
@@ -506,6 +379,17 @@ function CertificadoPropio({
           <Plug size={14} />
           {probando ? "Consultando ARCA…" : "Probar conexión"}
         </Button>
+        {resultado && (
+          <p
+            className={`mt-3 rounded-btn px-3 py-2 text-[12px] ${
+              resultado.ok
+                ? "bg-status-ok/15 text-status-ok"
+                : "bg-status-error/15 text-status-error"
+            }`}
+          >
+            {resultado.texto}
+          </p>
+        )}
       </Card>
 
       {mensaje && (
