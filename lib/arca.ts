@@ -1,8 +1,17 @@
 import { Afip } from "afip.ts";
 import { createSupabaseAdminClient } from "@/lib/supabase-server";
 
-// Mapeo de tipo de factura → código de comprobante WSFE
-const CODIGO_COMPROBANTE: Record<string, number> = { A: 1, B: 6, C: 11 };
+// Mapeo de tipo de factura → código de comprobante WSFE (usado también por
+// el generador de QR del comprobante, RG 4892)
+export const CODIGO_COMPROBANTE: Record<string, number> = { A: 1, B: 6, C: 11 };
+
+// 80 = CUIT, 96 = DNI, 99 = consumidor final — usado en la emisión y en el QR
+export function docTipoYNro(cuitDni: string | null | undefined) {
+  const limpio = (cuitDni ?? "").replace(/[^\d]/g, "");
+  const docTipo = limpio.length === 11 ? 80 : limpio.length >= 7 ? 96 : 99;
+  const docNro = docTipo === 99 ? 0 : Number(limpio);
+  return { docTipo, docNro };
+}
 
 // Errores comunes de ARCA en formato amigable
 const ERRORES_ARCA: { patron: RegExp; mensaje: string }[] = [
@@ -219,10 +228,7 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
     const afip = clienteAfip(cred.keyPem, cred.certPem, negocio.cuit);
 
     const cbteTipo = CODIGO_COMPROBANTE[factura.tipo];
-    const cuitDni = (factura.clientes?.cuit_dni ?? "").replace(/[^\d]/g, "");
-    // 80 = CUIT, 96 = DNI, 99 = consumidor final
-    const docTipo = cuitDni.length === 11 ? 80 : cuitDni.length >= 7 ? 96 : 99;
-    const docNro = docTipo === 99 ? 0 : Number(cuitDni);
+    const { docTipo, docNro } = docTipoYNro(factura.clientes?.cuit_dni);
 
     const esA = factura.tipo === "A";
     const impNeto = esA ? Number(factura.subtotal) : Number(factura.total);

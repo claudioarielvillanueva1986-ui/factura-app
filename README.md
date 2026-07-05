@@ -33,6 +33,7 @@ Supabase o `supabase db push`):
 | `004_facturas.sql` | `crear_factura` (numeración por tipo + IVA) |
 | `005_mercadopago.sql` | `crear_factura_mp` + `mp_webhook_logs` |
 | `006_produccion.sql` | OAuth de MP (tokens con refresh) + modo ARCA delegado |
+| `007_datos_fiscales.sql` | Domicilio, Ingresos Brutos e inicio de actividades del negocio (encabezado del PDF) |
 
 ### Variables de entorno (`.env.local`)
 
@@ -68,6 +69,26 @@ WebServices → Facturación Electrónica** y crea su punto de venta para web
 services. Sin CSR ni archivos. El botón "Probar conexión" valida la delegación
 (WSAA + último comprobante). El flujo de certificado propio por negocio queda
 disponible como opción avanzada (`negocios.arca_modo = 'certificado_propio'`).
+
+## Comprobante en PDF
+
+Cada factura emitida (con CAE) tiene un PDF en formato oficial argentino,
+disponible en `GET /api/facturas/{id}/pdf` (botón "Descargar PDF" en el
+listado de facturas, envíos y en la pantalla de éxito al emitir):
+
+- Encabezado con razón social, domicilio comercial, condición frente al IVA,
+  CUIT, Ingresos Brutos e inicio de actividades del emisor
+- Datos del receptor y detalle de ítems
+- Impuestos según el tipo de comprobante:
+  - **A**: IVA discriminado (Neto Gravado + IVA 21% + Total)
+  - **B**: Total con la leyenda de IVA contenido (Régimen de Transparencia
+    Fiscal al Consumidor, Ley 27.743)
+  - **C**: sin IVA (monotributo)
+- CAE, vencimiento y el **código QR obligatorio** (RG 4892/2020 de AFIP)
+
+Requiere que el negocio complete Domicilio, Ingresos Brutos e Inicio de
+actividades en Configuración → Negocio (son datos obligatorios del
+encabezado).
 
 ## Seguridad
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, FileDown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/useAuth";
 import { enviarPorWhatsApp } from "@/lib/whatsapp";
@@ -78,6 +78,15 @@ export default function EnviosPage() {
                   <span className="text-[13px] font-semibold tabular-nums">
                     {formatoPesos(f.total)}
                   </span>
+                  <a
+                    href={`/api/facturas/${f.id}/pdf`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Ver / descargar PDF"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-btn border border-line text-text-secondary transition-colors hover:text-text-primary"
+                  >
+                    <FileDown size={15} />
+                  </a>
                   <button
                     onClick={() => enviar(f)}
                     className="inline-flex items-center gap-1.5 rounded-btn bg-whatsapp px-3 py-2 text-[12px] font-semibold text-[#052e16] transition-all hover:brightness-110"

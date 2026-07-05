@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, CheckCircle2, MessageCircle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, CheckCircle2, MessageCircle, FileDown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/useAuth";
 import { enviarPorWhatsApp } from "@/lib/whatsapp";
@@ -181,6 +181,15 @@ export default function NuevaFacturaPage() {
             <MessageCircle size={15} />
             Enviar por WhatsApp
           </Button>
+          <a
+            href={`/api/facturas/${exito.factura.id}/pdf`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-btn border border-line py-2.5 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+          >
+            <FileDown size={15} />
+            Ver / descargar PDF
+          </a>
           <Link
             href="/facturas"
             className="block text-[12px] text-text-secondary hover:text-text-primary"
