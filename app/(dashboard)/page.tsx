@@ -16,7 +16,7 @@ import { supabase } from "@/lib/supabase";
 import { Card } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { EstadoBadge } from "@/components/ui/EstadoBadge";
-import { Cargando } from "@/components/ui/Cargando";
+import { Skeleton, SkeletonLista, SkeletonGrafico } from "@/components/ui/Skeleton";
 import { formatoPesos, formatoNumeroFactura, type ResumenDashboard } from "@/lib/types";
 
 export default function DashboardPage() {
@@ -72,19 +72,26 @@ export default function DashboardPage() {
       </header>
 
       {/* Stats 2x2 en mobile, 4 columnas en desktop */}
-      <div
-        className={`grid grid-cols-2 gap-3 lg:grid-cols-4 ${!resumen ? "animate-pulse" : ""}`}
-      >
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats.map(({ label, valor, sub, icon: Icon, color }) => (
           <Card key={label} className="p-4">
             <div className="flex items-center justify-between">
               <span className="text-[12px] text-text-secondary">{label}</span>
               <Icon size={15} className="text-text-muted" />
             </div>
-            <p className={`mt-2 text-[22px] font-semibold tabular-nums ${color}`}>
-              {valor}
-            </p>
-            {sub && <p className="text-[11px] text-text-muted">{sub}</p>}
+            {resumen ? (
+              <>
+                <p className={`mt-2 text-[22px] font-semibold tabular-nums ${color}`}>
+                  {valor}
+                </p>
+                {sub && <p className="text-[11px] text-text-muted">{sub}</p>}
+              </>
+            ) : (
+              <>
+                <Skeleton className="mt-3 h-6 w-24" />
+                <Skeleton className="mt-2 h-2.5 w-16" />
+              </>
+            )}
           </Card>
         ))}
       </div>
@@ -106,7 +113,7 @@ export default function DashboardPage() {
         </div>
         <div className="h-[220px]">
           {!resumen ? (
-            <Cargando className="h-full" />
+            <SkeletonGrafico />
           ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={resumen?.semana ?? []} barGap={2}>
@@ -162,7 +169,7 @@ export default function DashboardPage() {
           </Link>
         </div>
         <div className="divide-y divide-line">
-          {!resumen && <Cargando />}
+          {!resumen && <SkeletonLista filas={3} />}
           {(resumen?.ultimas ?? []).map((f) => (
             <Link
               key={f.id}

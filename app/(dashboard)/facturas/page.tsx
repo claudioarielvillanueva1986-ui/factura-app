@@ -8,7 +8,7 @@ import { enviarPorWhatsApp } from "@/lib/whatsapp";
 import { Card } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { EstadoBadge } from "@/components/ui/EstadoBadge";
-import { Cargando } from "@/components/ui/Cargando";
+import { SkeletonLista } from "@/components/ui/Skeleton";
 import { useAuth } from "@/lib/useAuth";
 import {
   formatoPesos,
@@ -160,7 +160,7 @@ export default function FacturasPage() {
               </div>
             );
           })}
-          {cargando && <Cargando />}
+          {cargando && <SkeletonLista filas={6} />}
           {!cargando && visibles.length === 0 && (
             <p className="px-5 py-10 text-center text-[13px] text-text-muted">
               No hay facturas para este filtro.

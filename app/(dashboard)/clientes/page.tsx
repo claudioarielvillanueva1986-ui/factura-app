@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Avatar } from "@/components/ui/Avatar";
-import { Cargando } from "@/components/ui/Cargando";
+import { SkeletonLista } from "@/components/ui/Skeleton";
 import type { Cliente } from "@/lib/types";
 
 const FORM_VACIO = { nombre: "", cuit_dni: "", email: "", telefono: "" };
@@ -109,7 +109,7 @@ export default function ClientesPage() {
               </span>
             </div>
           ))}
-          {cargando && <Cargando />}
+          {cargando && <SkeletonLista filas={5} />}
           {!cargando && visibles.length === 0 && (
             <p className="px-5 py-10 text-center text-[13px] text-text-muted">
               {busqueda ? "Sin resultados." : "Todavía no cargaste clientes."}
@@ -121,11 +121,11 @@ export default function ClientesPage() {
       {/* Modal nuevo cliente */}
       {modalAbierto && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+          className="animate-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
           onClick={() => setModalAbierto(false)}
         >
           <div
-            className="w-full max-w-sm rounded-card border border-line bg-surface p-6"
+            className="animate-modal w-full max-w-sm rounded-card border border-line bg-surface p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
