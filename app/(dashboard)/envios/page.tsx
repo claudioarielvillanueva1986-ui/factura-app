@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/useAuth";
 import { enviarPorWhatsApp } from "@/lib/whatsapp";
 import { Card } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
-import { Cargando } from "@/components/ui/Cargando";
+import { SkeletonLista } from "@/components/ui/Skeleton";
 import { formatoPesos, formatoNumeroFactura, type Factura } from "@/lib/types";
 
 // Cola de comprobantes emitidos pendientes de envío por WhatsApp.
@@ -89,7 +89,7 @@ export default function EnviosPage() {
               </div>
             );
           })}
-          {cargando && <Cargando />}
+          {cargando && <SkeletonLista filas={4} />}
           {!cargando && pendientes.length === 0 && (
             <p className="px-5 py-10 text-center text-[13px] text-text-muted">
               🎉 Nada pendiente: todos los comprobantes fueron enviados.

@@ -110,11 +110,22 @@ export default function DashboardLayout({
             <Link
               key={href}
               href={href}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] transition-colors ${
+              className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] transition-colors duration-200 ${
                 activo ? "font-medium text-brand-hover" : "text-text-muted"
               }`}
             >
-              <Icon size={20} strokeWidth={activo ? 2.2 : 1.7} />
+              <span
+                className={`absolute top-0 h-0.5 w-8 rounded-full bg-brand transition-opacity duration-200 ${
+                  activo ? "opacity-100" : "opacity-0"
+                }`}
+              />
+              <span
+                className={`transition-transform duration-200 ${
+                  activo ? "-translate-y-px scale-110" : ""
+                }`}
+              >
+                <Icon size={20} strokeWidth={activo ? 2.2 : 1.7} />
+              </span>
               {corto}
             </Link>
           );

@@ -18,7 +18,7 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 export function Button({ variant = "brand", className = "", ...props }: Props) {
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 rounded-btn px-4 py-2 text-[13px] font-medium transition-colors ${VARIANTES[variant]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-btn px-4 py-2 text-[13px] font-medium transition-all duration-150 active:scale-[0.97] ${VARIANTES[variant]} ${className}`}
       {...props}
     />
   );
