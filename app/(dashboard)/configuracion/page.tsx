@@ -82,6 +82,9 @@ function TabNegocio() {
     razon_social: "",
     condicion_iva: "monotributo",
     punto_venta: "1",
+    domicilio: "",
+    iibb: "",
+    inicio_actividades: "",
   });
   const [guardado, setGuardado] = useState(false);
 
@@ -93,6 +96,9 @@ function TabNegocio() {
         razon_social: negocio.razon_social ?? "",
         condicion_iva: negocio.condicion_iva ?? "monotributo",
         punto_venta: String(negocio.punto_venta ?? 1),
+        domicilio: negocio.domicilio ?? "",
+        iibb: negocio.iibb ?? "",
+        inicio_actividades: negocio.inicio_actividades ?? "",
       });
     }
   }, [negocio]);
@@ -108,6 +114,9 @@ function TabNegocio() {
         razon_social: form.razon_social.trim() || null,
         condicion_iva: form.condicion_iva,
         punto_venta: parseInt(form.punto_venta) || 1,
+        domicilio: form.domicilio.trim() || null,
+        iibb: form.iibb.trim() || null,
+        inicio_actividades: form.inicio_actividades || null,
       })
       .eq("id", negocio.id);
     setGuardado(true);
@@ -161,6 +170,41 @@ function TabNegocio() {
             <option value="responsable_inscripto">Responsable Inscripto (A/B/C)</option>
           </select>
         </label>
+
+        <div className="border-t border-line pt-3.5">
+          <p className="mb-3 text-[12px] font-medium text-text-secondary">
+            Datos fiscales para el comprobante
+          </p>
+          <div className="space-y-3.5">
+            <Input
+              id="n-domicilio"
+              label="Domicilio comercial"
+              value={form.domicilio}
+              onChange={(e) => setForm({ ...form, domicilio: e.target.value })}
+              placeholder="Av. Siempreviva 742, Córdoba"
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                id="n-iibb"
+                label="Ingresos Brutos"
+                value={form.iibb}
+                onChange={(e) => setForm({ ...form, iibb: e.target.value })}
+                placeholder="N° o CM (Convenio Multilateral)"
+              />
+              <Input
+                id="n-inicio"
+                label="Inicio de actividades"
+                type="date"
+                value={form.inicio_actividades}
+                onChange={(e) => setForm({ ...form, inicio_actividades: e.target.value })}
+              />
+            </div>
+          </div>
+          <p className="mt-2 text-[11px] text-text-muted">
+            Van impresos en el PDF del comprobante — son datos obligatorios según ARCA.
+          </p>
+        </div>
+
         <Button type="submit">{guardado ? "✓ Guardado" : "Guardar cambios"}</Button>
       </form>
     </Card>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, MessageCircle } from "lucide-react";
+import { Plus, Search, MessageCircle, FileDown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { enviarPorWhatsApp } from "@/lib/whatsapp";
 import { Card } from "@/components/ui/Card";
@@ -125,6 +125,7 @@ export default function FacturasPage() {
           {visibles.map((f) => {
             const nombre = f.clientes?.nombre ?? "Consumidor Final";
             const puedeWA = f.estado === "emitida" && !f.wa_enviado;
+            const tieneCae = Boolean(f.cae) && (f.estado === "emitida" || f.estado === "enviada");
             return (
               <div
                 key={f.id}
@@ -147,6 +148,17 @@ export default function FacturasPage() {
                     {formatoPesos(f.total)}
                   </span>
                   <EstadoBadge estado={f.estado} origen={f.origen} />
+                  {tieneCae && (
+                    <a
+                      href={`/api/facturas/${f.id}/pdf`}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Ver / descargar PDF"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-btn border border-line text-text-secondary transition-colors hover:text-text-primary"
+                    >
+                      <FileDown size={15} />
+                    </a>
+                  )}
                   {puedeWA && (
                     <button
                       onClick={() => onWhatsApp(f)}

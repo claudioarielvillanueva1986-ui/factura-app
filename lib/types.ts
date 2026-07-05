@@ -14,6 +14,9 @@ export interface Negocio {
   trial_hasta: string | null;
   arca_modo?: "delegado" | "certificado_propio";
   arca_verificado_en?: string | null;
+  domicilio?: string | null;
+  iibb?: string | null;
+  inicio_actividades?: string | null;
 }
 
 export interface Usuario {
