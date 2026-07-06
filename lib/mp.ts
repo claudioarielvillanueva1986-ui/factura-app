@@ -118,6 +118,7 @@ interface CobroRef {
   id: string;
   app_id: string | null;
   facturar: boolean;
+  external_reference: string | null;
 }
 
 export interface EventoMP {
@@ -208,7 +209,7 @@ export async function procesarEventoMP(admin: SupabaseClient, evento: EventoMP) 
     if (pago.external_reference) {
       const { data } = await admin
         .from("cobros")
-        .select("id, app_id, facturar")
+        .select("id, app_id, facturar, external_reference")
         .eq("id", pago.external_reference)
         .eq("negocio_id", negocioId)
         .maybeSingle();
@@ -230,6 +231,7 @@ export async function procesarEventoMP(admin: SupabaseClient, evento: EventoMP) 
         await notificarPartner(admin, cobro.app_id, {
           event: "cobro.rechazado",
           cobro_id: cobro.id,
+          external_reference: cobro.external_reference,
           estado: "rechazado",
           mp_payment_id: String(evento.paymentId),
           monto: pago.transaction_amount,
@@ -259,6 +261,7 @@ export async function procesarEventoMP(admin: SupabaseClient, evento: EventoMP) 
         await notificarPartner(admin, cobro.app_id, {
           event: "cobro.aprobado",
           cobro_id: cobro.id,
+          external_reference: cobro.external_reference,
           estado: "aprobado",
           mp_payment_id: String(evento.paymentId),
           monto: pago.transaction_amount,
@@ -325,6 +328,7 @@ export async function procesarEventoMP(admin: SupabaseClient, evento: EventoMP) 
       await notificarPartner(admin, cobro.app_id, {
         event: "cobro.aprobado",
         cobro_id: cobro.id,
+        external_reference: cobro.external_reference,
         estado: "aprobado",
         mp_payment_id: String(evento.paymentId),
         monto: pago.transaction_amount,
