@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase-server";
+import { exigirAdmin } from "@/lib/authz";
 
 export const runtime = "nodejs";
 
 // Guarda el certificado .crt emitido por ARCA en arca_credenciales.
+// Solo el admin del negocio puede subirlo.
 export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -13,13 +15,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
-  const { data: usuario } = await supabase
-    .from("usuarios")
-    .select("negocio_id")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!usuario?.negocio_id) {
-    return NextResponse.json({ error: "Usuario sin negocio" }, { status: 400 });
+  const authz = await exigirAdmin(supabase, user.id);
+  if (!authz.ok) {
+    return NextResponse.json({ error: authz.error }, { status: authz.status });
   }
 
   const { cert_pem } = (await request.json()) as { cert_pem?: string };
@@ -34,7 +32,7 @@ export async function POST(request: NextRequest) {
   const { data: cred } = await admin
     .from("arca_credenciales")
     .select("key_pem")
-    .eq("negocio_id", usuario.negocio_id)
+    .eq("negocio_id", authz.usuario.negocio_id)
     .maybeSingle();
 
   if (!cred?.key_pem) {
@@ -47,7 +45,7 @@ export async function POST(request: NextRequest) {
   const { error } = await admin
     .from("arca_credenciales")
     .update({ cert_pem, updated_at: new Date().toISOString() })
-    .eq("negocio_id", usuario.negocio_id);
+    .eq("negocio_id", authz.usuario.negocio_id);
 
   if (error) {
     return NextResponse.json({ error: "No se pudo guardar el certificado" }, { status: 500 });

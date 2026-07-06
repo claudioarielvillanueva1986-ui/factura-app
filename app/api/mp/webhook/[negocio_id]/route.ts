@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase-server";
 import { procesarEventoMP } from "@/lib/mp";
+import { verificarFirmaMP } from "@/lib/mpWebhookAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 26;
@@ -32,6 +33,11 @@ export async function POST(
     ((payload.data as Record<string, unknown>)?.id as string | number | undefined) ??
     request.nextUrl.searchParams.get("data.id") ??
     request.nextUrl.searchParams.get("id");
+
+  if (!verificarFirmaMP(request, paymentId != null ? String(paymentId) : null)) {
+    console.warn("Webhook MP (manual): firma inválida, se descarta la notificación.");
+    return NextResponse.json({ ok: true });
+  }
 
   await procesarEventoMP(admin, {
     negocioId: negocio_id,

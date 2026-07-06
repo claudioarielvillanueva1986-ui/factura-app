@@ -17,6 +17,11 @@ export interface Negocio {
   domicilio?: string | null;
   iibb?: string | null;
   inicio_actividades?: string | null;
+  estado_cuenta?: "trial" | "activo" | "gracia" | "suspendido" | "cancelado";
+  gracia_hasta?: string | null;
+  mp_preapproval_id?: string | null;
+  precio_mensual?: number | null;
+  notas_admin?: string | null;
 }
 
 export interface Usuario {

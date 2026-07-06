@@ -13,6 +13,9 @@ import {
   Check,
   Plug,
   RefreshCw,
+  Sparkles,
+  Clock,
+  AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/useAuth";
@@ -20,13 +23,28 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { WizardDelegacion } from "@/components/arca/WizardDelegacion";
+import { formatoPesos } from "@/lib/types";
 
-type Tab = "negocio" | "arca" | "mercadopago";
+type Tab = "negocio" | "arca" | "mercadopago" | "suscripcion";
+
+// Estas secciones modifican configuración sensible del negocio (CUIT, ARCA,
+// Mercado Pago): el backend ya lo exige (RLS + rutas), esto es solo para
+// que un operador entienda por qué no puede guardar en vez de ver un error
+// genérico.
+function AvisoSoloAdmin() {
+  return (
+    <div className="rounded-card border border-status-warn/30 bg-status-warn/10 px-4 py-3 text-[12px] text-status-warn">
+      Esta sección es solo para administradores del negocio. Pedile a un
+      admin que haga estos cambios.
+    </div>
+  );
+}
 
 const TABS: { id: Tab; label: string; icon: typeof Building2 }[] = [
   { id: "negocio", label: "Negocio", icon: Building2 },
   { id: "arca", label: "ARCA", icon: ShieldCheck },
   { id: "mercadopago", label: "Mercado Pago", icon: CreditCard },
+  { id: "suscripcion", label: "Suscripción", icon: Sparkles },
 ];
 
 export default function ConfiguracionPage() {
@@ -68,6 +86,7 @@ function Configuracion() {
       {tab === "negocio" && <TabNegocio />}
       {tab === "arca" && <TabArca />}
       {tab === "mercadopago" && <TabMercadoPago />}
+      {tab === "suscripcion" && <TabSuscripcion />}
     </div>
   );
 }
@@ -75,7 +94,8 @@ function Configuracion() {
 /* ============================ Tab Negocio ============================ */
 
 function TabNegocio() {
-  const { negocio, refrescar } = useAuth();
+  const { negocio, usuario, refrescar } = useAuth();
+  const esAdmin = usuario?.rol === "admin";
   const [form, setForm] = useState({
     nombre: "",
     cuit: "",
@@ -125,7 +145,10 @@ function TabNegocio() {
   }
 
   return (
-    <Card>
+    <div className="space-y-4">
+      {!esAdmin && <AvisoSoloAdmin />}
+      <Card>
+      <fieldset disabled={!esAdmin} className="space-y-3.5 disabled:opacity-60">
       <form onSubmit={guardar} className="space-y-3.5">
         <Input
           id="n-nombre"
@@ -207,14 +230,17 @@ function TabNegocio() {
 
         <Button type="submit">{guardado ? "✓ Guardado" : "Guardar cambios"}</Button>
       </form>
+      </fieldset>
     </Card>
+    </div>
   );
 }
 
 /* ============================ Tab ARCA ============================ */
 
 function TabArca() {
-  const { negocio, refrescar } = useAuth();
+  const { negocio, usuario, refrescar } = useAuth();
+  const esAdmin = usuario?.rol === "admin";
   const modoPropio = negocio?.arca_modo === "certificado_propio";
 
   async function cambiarModo(modo: "delegado" | "certificado_propio") {
@@ -225,6 +251,7 @@ function TabArca() {
 
   return (
     <div className="space-y-4">
+      {!esAdmin && <AvisoSoloAdmin />}
       {!modoPropio && <WizardDelegacion />}
 
       {modoPropio && <CertificadoPropio />}
@@ -243,6 +270,7 @@ function TabArca() {
           type="button"
           variant="ghost"
           className="mt-3"
+          disabled={!esAdmin}
           onClick={() => cambiarModo(modoPropio ? "delegado" : "certificado_propio")}
         >
           {modoPropio ? "Usar modo simple" : "Usar certificado propio"}
@@ -468,7 +496,8 @@ function PasoHeader({ numero, titulo, ok }: { numero: number; titulo: string; ok
 /* ============================ Tab Mercado Pago ============================ */
 
 function TabMercadoPago() {
-  const { negocio } = useAuth();
+  const { negocio, usuario } = useAuth();
+  const esAdmin = usuario?.rol === "admin";
   const searchParams = useSearchParams();
   const [config, setConfig] = useState<{
     conectado: boolean;
@@ -486,15 +515,16 @@ function TabMercadoPago() {
 
   const cargar = useCallback(async () => {
     if (!negocio) return;
+    // access_token/refresh_token nunca se leen desde el cliente: 'conectado'
+    // y 'manual' son columnas generadas en la base a partir de su presencia.
     const { data } = await supabase
       .from("mercadopago_config")
-      .select("auto_facturar, access_token, refresh_token, mp_user_id, expira_en")
+      .select("auto_facturar, mp_user_id, expira_en, conectado, manual")
       .eq("negocio_id", negocio.id)
       .maybeSingle();
     setConfig({
-      conectado: Boolean(data?.access_token),
-      // Sin refresh_token = token pegado a mano (flujo manual)
-      manual: Boolean(data?.access_token) && !data?.refresh_token,
+      conectado: data?.conectado ?? false,
+      manual: data?.manual ?? false,
       mp_user_id: data?.mp_user_id ?? null,
       expira_en: data?.expira_en ?? null,
       auto_facturar: data?.auto_facturar ?? false,
@@ -543,16 +573,22 @@ function TabMercadoPago() {
 
   return (
     <div className="space-y-4">
+      {!esAdmin && <AvisoSoloAdmin />}
       {mpOk && (
         <div className="rounded-card border border-status-ok/30 bg-status-ok/10 px-4 py-3 text-[13px] text-status-ok">
           ✓ ¡Cuenta de Mercado Pago conectada! Los pagos ya llegan a facturá.
         </div>
       )}
-      {mpError && (
+      {mpError && mpError !== "rol" && (
         <div className="rounded-card border border-status-error/30 bg-status-error/10 px-4 py-3 text-[13px] text-status-error">
           No se pudo conectar con Mercado Pago
           {mpError === "config" && " (la plataforma no tiene configurado MP_CLIENT_ID)"}
           . Probá de nuevo o contactá a soporte.
+        </div>
+      )}
+      {mpError === "rol" && (
+        <div className="rounded-card border border-status-error/30 bg-status-error/10 px-4 py-3 text-[13px] text-status-error">
+          Solo un administrador del negocio puede conectar la cuenta de Mercado Pago.
         </div>
       )}
 
@@ -577,8 +613,9 @@ function TabMercadoPago() {
               </p>
             )}
             <a
-              href="/api/mp/oauth/conectar"
-              className="inline-flex items-center gap-2 rounded-btn border border-line bg-white/5 px-4 py-2 text-[13px] font-medium text-text-secondary transition-colors hover:bg-white/10"
+              href={esAdmin ? "/api/mp/oauth/conectar" : undefined}
+              aria-disabled={!esAdmin}
+              className={`inline-flex items-center gap-2 rounded-btn border border-line bg-white/5 px-4 py-2 text-[13px] font-medium text-text-secondary transition-colors ${esAdmin ? "hover:bg-white/10" : "cursor-not-allowed opacity-50"}`}
             >
               <RefreshCw size={14} />
               Reconectar cuenta
@@ -591,8 +628,9 @@ function TabMercadoPago() {
               autorizás y listo. Sin copiar credenciales ni configurar nada más.
             </p>
             <a
-              href="/api/mp/oauth/conectar"
-              className="inline-flex items-center gap-2 rounded-btn bg-[#009EE3] px-4 py-2.5 text-[13px] font-semibold text-white transition-all hover:brightness-110"
+              href={esAdmin ? "/api/mp/oauth/conectar" : undefined}
+              aria-disabled={!esAdmin}
+              className={`inline-flex items-center gap-2 rounded-btn bg-[#009EE3] px-4 py-2.5 text-[13px] font-semibold text-white transition-all ${esAdmin ? "hover:brightness-110" : "cursor-not-allowed opacity-50"}`}
             >
               <Plug size={15} />
               Conectar con Mercado Pago
@@ -621,7 +659,8 @@ function TabMercadoPago() {
             role="switch"
             aria-checked={config?.auto_facturar ?? false}
             onClick={toggleAutoFacturar}
-            className={`relative h-6 w-11 rounded-full transition-colors ${
+            disabled={!esAdmin}
+            className={`relative h-6 w-11 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
               config?.auto_facturar ? "bg-brand" : "bg-white/10"
             }`}
           >
@@ -664,11 +703,174 @@ function TabMercadoPago() {
               </Button>
             </div>
           )}
-          <Button type="submit" variant="ghost" disabled={!accessToken.trim()}>
+          <Button type="submit" variant="ghost" disabled={!esAdmin || !accessToken.trim()}>
             {guardado ? "✓ Guardado" : "Guardar token manual"}
           </Button>
         </form>
       </details>
+    </div>
+  );
+}
+
+/* ============================ Tab Suscripción ============================ */
+
+const ESTADO_LABEL: Record<string, { texto: string; clase: string }> = {
+  trial: { texto: "Período de prueba", clase: "bg-brand-dim text-brand-hover" },
+  activo: { texto: "Activa", clase: "bg-status-ok/15 text-status-ok" },
+  gracia: { texto: "Período de gracia", clase: "bg-status-warn/15 text-status-warn" },
+  suspendido: { texto: "Suspendida", clase: "bg-status-error/15 text-status-error" },
+  cancelado: { texto: "Cancelada", clase: "bg-white/10 text-text-secondary" },
+};
+
+function diasRestantes(fecha: string | null | undefined) {
+  if (!fecha) return null;
+  const ms = new Date(`${fecha}T00:00:00`).getTime() - new Date().setHours(0, 0, 0, 0);
+  return Math.ceil(ms / (1000 * 60 * 60 * 24));
+}
+
+function TabSuscripcion() {
+  const { negocio, usuario, refrescar } = useAuth();
+  const esAdmin = usuario?.rol === "admin";
+  const searchParams = useSearchParams();
+  const [precioDefault, setPrecioDefault] = useState<number | null>(null);
+  const [activando, setActivando] = useState(false);
+  const [sincronizando, setSincronizando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const volvioDeMp = searchParams.get("suscripcion") === "ok";
+
+  useEffect(() => {
+    supabase
+      .from("configuracion_plataforma")
+      .select("precio_mensual")
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => setPrecioDefault(data?.precio_mensual ?? null));
+  }, []);
+
+  const sincronizar = useCallback(async () => {
+    setSincronizando(true);
+    try {
+      await fetch("/api/billing/sincronizar", { method: "POST" });
+      refrescar();
+    } finally {
+      setSincronizando(false);
+    }
+  }, [refrescar]);
+
+  useEffect(() => {
+    if (volvioDeMp) sincronizar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [volvioDeMp]);
+
+  if (!negocio) return null;
+
+  const estado = negocio.estado_cuenta ?? "trial";
+  const precio = negocio.precio_mensual ?? precioDefault;
+  const diasTrial = diasRestantes(negocio.trial_hasta);
+  const diasGracia = diasRestantes(negocio.gracia_hasta);
+  const tieneSuscripcionActiva = estado === "activo" && Boolean(negocio.mp_preapproval_id);
+
+  async function activarSuscripcion() {
+    setError(null);
+    setActivando(true);
+    try {
+      const res = await fetch("/api/billing/crear-preapproval", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "No se pudo crear la suscripción");
+      window.location.href = data.init_point;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo crear la suscripción");
+      setActivando(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {!esAdmin && <AvisoSoloAdmin />}
+
+      <Card className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[14px] font-semibold">Tu plan</h2>
+          <span
+            className={`rounded-full px-3 py-1 text-[11px] font-medium ${
+              ESTADO_LABEL[estado]?.clase ?? "bg-white/10 text-text-secondary"
+            }`}
+          >
+            {ESTADO_LABEL[estado]?.texto ?? estado}
+          </span>
+        </div>
+
+        {precio != null && (
+          <p className="text-[22px] font-semibold tabular-nums">
+            {formatoPesos(Number(precio))}
+            <span className="text-[12px] font-normal text-text-muted"> / mes</span>
+          </p>
+        )}
+
+        {estado === "trial" && diasTrial != null && (
+          <div className="flex items-center gap-2 text-[12px] text-text-secondary">
+            <Clock size={14} />
+            {diasTrial > 0
+              ? `Te quedan ${diasTrial} día${diasTrial === 1 ? "" : "s"} de prueba gratis.`
+              : "Tu período de prueba terminó."}
+          </div>
+        )}
+
+        {estado === "gracia" && (
+          <div className="flex items-center gap-2 text-[12px] text-status-warn">
+            <AlertTriangle size={14} />
+            {diasGracia != null && diasGracia > 0
+              ? `Estás en período de gracia: ${diasGracia} día${diasGracia === 1 ? "" : "s"} más para regularizar el pago.`
+              : "Tu período de gracia terminó."}
+          </div>
+        )}
+
+        {estado === "suspendido" && (
+          <div className="flex items-center gap-2 text-[12px] text-status-error">
+            <AlertTriangle size={14} />
+            Tu cuenta está suspendida: no podés emitir facturas hasta reactivar la suscripción.
+          </div>
+        )}
+
+        {tieneSuscripcionActiva ? (
+          <div className="space-y-2">
+            <p className="text-[12px] text-status-ok">
+              ✓ Suscripción activa — el cobro se hace solo todos los meses.
+            </p>
+            <Button variant="ghost" onClick={sincronizar} disabled={sincronizando}>
+              <RefreshCw size={14} />
+              {sincronizando ? "Sincronizando…" : "Sincronizar estado"}
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-[12px] text-text-secondary">
+              Activá el cobro automático mensual con Mercado Pago: te llevamos a autorizar el
+              pago recurrente y no tenés que volver a hacer nada todos los meses.
+            </p>
+            <Button onClick={activarSuscripcion} disabled={!esAdmin || activando}>
+              <Sparkles size={15} />
+              {activando ? "Redirigiendo a Mercado Pago…" : "Activar suscripción automática"}
+            </Button>
+            {negocio.mp_preapproval_id && (
+              <Button variant="ghost" onClick={sincronizar} disabled={sincronizando}>
+                <RefreshCw size={14} />
+                {sincronizando ? "Sincronizando…" : "Ya autoricé — sincronizar"}
+              </Button>
+            )}
+          </div>
+        )}
+
+        {error && (
+          <p className="rounded-btn bg-status-error/15 px-3 py-2 text-[12px] text-status-error">
+            {error}
+          </p>
+        )}
+      </Card>
+
+      <p className="text-[11px] text-text-muted">
+        ¿Necesitás cambiar o dar de baja tu suscripción? Escribinos y lo resolvemos.
+      </p>
     </div>
   );
 }
