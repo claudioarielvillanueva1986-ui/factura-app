@@ -32,9 +32,13 @@ export async function middleware(request: NextRequest) {
   const esLogin = pathname.startsWith("/login");
 
   if (!user && !esLogin) {
+    // Preservar el path + query string original (ej: los parámetros de
+    // /oauth/autorizar?client_id=...) para que el login pueda volver ahí.
+    const next = pathname + request.nextUrl.search;
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("next", pathname);
+    url.search = "";
+    url.searchParams.set("next", next);
     return NextResponse.redirect(url);
   }
 
@@ -53,9 +57,14 @@ export const config = {
     /*
      * Protege todo excepto:
      * - _next (estáticos), favicon, assets
-     * - /api/mp/webhook (Mercado Pago llama sin sesión)
+     * - /api/mp/webhook y /api/billing/webhook (Mercado Pago llama sin sesión)
+     * - /api/oauth/token y /api/partners (server-to-server: se autentican
+     *   con client_secret / Bearer token de partner, no con cookies)
+     * - /oauth/autorizar (página pública: valida la sesión ella misma y
+     *   muestra su propio flujo de login si hace falta, preservando los
+     *   parámetros de la solicitud OAuth)
      * Los endpoints de /api/arca validan sesión por su cuenta.
      */
-    "/((?!_next/static|_next/image|favicon.ico|api/mp/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/mp/webhook|api/billing/webhook|api/oauth/token|api/partners|oauth/autorizar|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
