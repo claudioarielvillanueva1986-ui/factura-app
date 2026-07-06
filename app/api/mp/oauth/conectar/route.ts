@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { createHash, randomBytes } from "node:crypto";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { urlRedirectOAuth } from "@/lib/mp";
+import { exigirAdmin } from "@/lib/authz";
 
 export const runtime = "nodejs";
 
 // Inicia el flujo OAuth de Mercado Pago: redirige a la pantalla de
-// autorización de MP con state anti-CSRF y PKCE (S256).
+// autorización de MP con state anti-CSRF y PKCE (S256). Solo el admin del
+// negocio puede conectar/reconectar la cuenta.
 export async function GET() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -14,6 +16,13 @@ export async function GET() {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.redirect(new URL("/login", process.env.NEXT_PUBLIC_APP_URL));
+  }
+
+  const authz = await exigirAdmin(supabase, user.id);
+  if (!authz.ok) {
+    return NextResponse.redirect(
+      new URL("/configuracion?mp_error=rol", process.env.NEXT_PUBLIC_APP_URL)
+    );
   }
 
   const clientId = process.env.MP_CLIENT_ID;

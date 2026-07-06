@@ -1,0 +1,415 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Search,
+  FileText,
+  Calendar,
+  Ban,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { formatoPesos } from "@/lib/types";
+
+type EstadoCuenta = "trial" | "activo" | "gracia" | "suspendido" | "cancelado";
+
+interface NegocioAdmin {
+  id: string;
+  nombre: string;
+  cuit: string | null;
+  razon_social: string | null;
+  plan: string;
+  estado_cuenta: EstadoCuenta;
+  trial_hasta: string | null;
+  gracia_hasta: string | null;
+  precio_mensual: number | null;
+  mp_preapproval_id: string | null;
+  notas_admin: string | null;
+  created_at: string;
+  habilitada: boolean;
+  usuarios_count: number;
+  facturas_count: number;
+  ultimo_pago: { monto: number; estado: string; fecha: string } | null;
+}
+
+const ESTADOS: { id: EstadoCuenta | "todos"; label: string }[] = [
+  { id: "todos", label: "Todos" },
+  { id: "trial", label: "Trial" },
+  { id: "activo", label: "Activos" },
+  { id: "gracia", label: "En gracia" },
+  { id: "suspendido", label: "Suspendidos" },
+  { id: "cancelado", label: "Cancelados" },
+];
+
+const ESTADO_BADGE: Record<EstadoCuenta, string> = {
+  trial: "bg-brand-dim text-brand-hover",
+  activo: "bg-status-ok/15 text-status-ok",
+  gracia: "bg-status-warn/15 text-status-warn",
+  suspendido: "bg-status-error/15 text-status-error",
+  cancelado: "bg-white/10 text-text-secondary",
+};
+
+export default function AdminPage() {
+  const [negocios, setNegocios] = useState<NegocioAdmin[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [filtro, setFiltro] = useState<EstadoCuenta | "todos">("todos");
+  const [busqueda, setBusqueda] = useState("");
+  const [expandido, setExpandido] = useState<string | null>(null);
+
+  const cargar = useCallback(async () => {
+    const { data, error } = await supabase.rpc("admin_listar_negocios");
+    if (!error) setNegocios((data as NegocioAdmin[]) ?? []);
+    setCargando(false);
+  }, []);
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  const visibles = useMemo(() => {
+    let lista = negocios;
+    if (filtro !== "todos") lista = lista.filter((n) => n.estado_cuenta === filtro);
+    const q = busqueda.trim().toLowerCase();
+    if (q) {
+      lista = lista.filter(
+        (n) =>
+          n.nombre.toLowerCase().includes(q) ||
+          (n.cuit ?? "").includes(q) ||
+          (n.razon_social ?? "").toLowerCase().includes(q)
+      );
+    }
+    return lista;
+  }, [negocios, filtro, busqueda]);
+
+  const stats = useMemo(
+    () => ({
+      total: negocios.length,
+      activos: negocios.filter((n) => n.estado_cuenta === "activo").length,
+      trial: negocios.filter((n) => n.estado_cuenta === "trial").length,
+      suspendidos: negocios.filter((n) => n.estado_cuenta === "suspendido").length,
+    }),
+    [negocios]
+  );
+
+  return (
+    <div className="space-y-5">
+      <header>
+        <h1 className="text-[16px] font-semibold">Negocios de la plataforma</h1>
+        <p className="mt-1 text-[12px] text-text-secondary">
+          Suscripciones, trials y períodos de gracia de todos los clientes.
+        </p>
+      </header>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Card className="p-4">
+          <p className="text-[11px] text-text-muted">Total</p>
+          <p className="mt-1 text-[20px] font-semibold tabular-nums">{stats.total}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-[11px] text-text-muted">Activos</p>
+          <p className="mt-1 text-[20px] font-semibold tabular-nums text-status-ok">
+            {stats.activos}
+          </p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-[11px] text-text-muted">En trial</p>
+          <p className="mt-1 text-[20px] font-semibold tabular-nums text-brand-hover">
+            {stats.trial}
+          </p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-[11px] text-text-muted">Suspendidos</p>
+          <p className="mt-1 text-[20px] font-semibold tabular-nums text-status-error">
+            {stats.suspendidos}
+          </p>
+        </Card>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {ESTADOS.map(({ id, label }) => (
+          <button
+            key={id}
+            onClick={() => setFiltro(id)}
+            className={`rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-colors ${
+              filtro === id
+                ? "bg-brand text-white"
+                : "border border-line bg-surface text-text-secondary hover:text-text-primary"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+        <div className="relative w-full sm:ml-auto sm:w-[220px]">
+          <Search
+            size={14}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
+          />
+          <input
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Nombre, CUIT…"
+            className="w-full rounded-btn border border-line bg-[#1A2235] py-2 pl-8 pr-3 text-[13px] placeholder:text-text-muted"
+          />
+        </div>
+      </div>
+
+      <Card className="p-0">
+        <div className="divide-y divide-line">
+          {visibles.map((n) => (
+            <div key={n.id}>
+              <button
+                onClick={() => setExpandido(expandido === n.id ? null : n.id)}
+                className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-left sm:px-5"
+              >
+                <div className="min-w-0 flex-1 basis-40">
+                  <p className="truncate text-[13px] font-medium">{n.nombre}</p>
+                  <p className="truncate text-[11px] text-text-muted">
+                    {n.cuit ?? "sin CUIT"} · {n.usuarios_count} usuario
+                    {n.usuarios_count === 1 ? "" : "s"} · {n.facturas_count} factura
+                    {n.facturas_count === 1 ? "" : "s"}
+                  </p>
+                </div>
+                {n.precio_mensual != null && (
+                  <span className="text-[12px] tabular-nums text-text-secondary">
+                    {formatoPesos(n.precio_mensual)}
+                  </span>
+                )}
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${ESTADO_BADGE[n.estado_cuenta]}`}
+                >
+                  {n.estado_cuenta}
+                </span>
+                {!n.habilitada && (
+                  <span className="rounded-full bg-status-error/15 px-2.5 py-0.5 text-[10px] text-status-error">
+                    bloqueada
+                  </span>
+                )}
+                {expandido === n.id ? (
+                  <ChevronUp size={16} className="text-text-muted" />
+                ) : (
+                  <ChevronDown size={16} className="text-text-muted" />
+                )}
+              </button>
+              {expandido === n.id && (
+                <DetalleNegocio negocio={n} onCambio={cargar} />
+              )}
+            </div>
+          ))}
+          {!cargando && visibles.length === 0 && (
+            <p className="px-5 py-10 text-center text-[13px] text-text-muted">
+              No hay negocios para este filtro.
+            </p>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+interface Pago {
+  id: string;
+  monto: number;
+  estado: string;
+  created_at: string;
+}
+
+function DetalleNegocio({
+  negocio,
+  onCambio,
+}: {
+  negocio: NegocioAdmin;
+  onCambio: () => void;
+}) {
+  const [trialHasta, setTrialHasta] = useState(negocio.trial_hasta ?? "");
+  const [graciaHasta, setGraciaHasta] = useState(negocio.gracia_hasta ?? "");
+  const [precio, setPrecio] = useState(String(negocio.precio_mensual ?? ""));
+  const [notas, setNotas] = useState(negocio.notas_admin ?? "");
+  const [estado, setEstado] = useState<EstadoCuenta>(negocio.estado_cuenta);
+  const [guardando, setGuardando] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
+  const [mensaje, setMensaje] = useState<string | null>(null);
+  const [pagos, setPagos] = useState<Pago[] | null>(null);
+
+  useEffect(() => {
+    supabase
+      .rpc("admin_listar_pagos", { p_negocio_id: negocio.id })
+      .then(({ data }) => setPagos((data as Pago[]) ?? []));
+  }, [negocio.id]);
+
+  async function guardar() {
+    setGuardando(true);
+    setMensaje(null);
+    const { error } = await supabase.rpc("admin_actualizar_negocio", {
+      p_negocio_id: negocio.id,
+      p_trial_hasta: trialHasta || null,
+      p_gracia_hasta: graciaHasta || null,
+      p_estado_cuenta: estado,
+      p_precio_mensual: precio ? Number(precio) : null,
+      p_notas_admin: notas || null,
+    });
+    setGuardando(false);
+    if (error) {
+      setMensaje(`Error: ${error.message}`);
+      return;
+    }
+    setMensaje("✓ Guardado");
+    onCambio();
+  }
+
+  function extenderDias(dias: number) {
+    const base = trialHasta ? new Date(`${trialHasta}T00:00:00`) : new Date();
+    base.setDate(base.getDate() + dias);
+    setTrialHasta(base.toISOString().slice(0, 10));
+  }
+
+  function darGracia(dias: number) {
+    const base = new Date();
+    base.setDate(base.getDate() + dias);
+    setGraciaHasta(base.toISOString().slice(0, 10));
+    setEstado("gracia");
+  }
+
+  async function cancelarSuscripcion() {
+    if (!confirm(`¿Cancelar la suscripción de "${negocio.nombre}"? Esto corta el cobro automático.`)) {
+      return;
+    }
+    setCancelando(true);
+    try {
+      const res = await fetch("/api/admin/suscripcion/cancelar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ negocio_id: negocio.id }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "No se pudo cancelar");
+      }
+      setMensaje("✓ Suscripción cancelada");
+      onCambio();
+    } catch (err) {
+      setMensaje(err instanceof Error ? `Error: ${err.message}` : "Error al cancelar");
+    } finally {
+      setCancelando(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4 border-t border-line bg-black/10 px-4 py-4 sm:px-5">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <label className="text-[12px] font-medium text-text-secondary">
+            Trial hasta
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={trialHasta}
+              onChange={(e) => setTrialHasta(e.target.value)}
+              className="w-full rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px]"
+            />
+            <Button type="button" variant="ghost" onClick={() => extenderDias(7)}>
+              +7d
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[12px] font-medium text-text-secondary">
+            Gracia hasta
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={graciaHasta}
+              onChange={(e) => setGraciaHasta(e.target.value)}
+              className="w-full rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px]"
+            />
+            <Button type="button" variant="ghost" onClick={() => darGracia(3)}>
+              <Calendar size={14} />
+              +3d
+            </Button>
+          </div>
+        </div>
+
+        <Input
+          id={`precio-${negocio.id}`}
+          label="Precio mensual (vacío = usar el default de la plataforma)"
+          type="number"
+          value={precio}
+          onChange={(e) => setPrecio(e.target.value)}
+          placeholder="9999"
+        />
+
+        <label className="block space-y-1.5">
+          <span className="text-[12px] font-medium text-text-secondary">Estado de cuenta</span>
+          <select
+            value={estado}
+            onChange={(e) => setEstado(e.target.value as EstadoCuenta)}
+            className="w-full rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px]"
+          >
+            <option value="trial">Trial</option>
+            <option value="activo">Activo</option>
+            <option value="gracia">En gracia</option>
+            <option value="suspendido">Suspendido</option>
+            <option value="cancelado">Cancelado</option>
+          </select>
+        </label>
+      </div>
+
+      <label className="block space-y-1.5">
+        <span className="text-[12px] font-medium text-text-secondary">Notas internas</span>
+        <textarea
+          value={notas}
+          onChange={(e) => setNotas(e.target.value)}
+          rows={2}
+          placeholder="Ej: pidió 15 días más por viaje, pagó por transferencia el 3/7…"
+          className="w-full rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px] placeholder:text-text-muted"
+        />
+      </label>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={guardar} disabled={guardando}>
+          {guardando ? "Guardando…" : "Guardar cambios"}
+        </Button>
+        {negocio.mp_preapproval_id && negocio.estado_cuenta !== "cancelado" && (
+          <Button variant="danger" onClick={cancelarSuscripcion} disabled={cancelando}>
+            <Ban size={14} />
+            {cancelando ? "Cancelando…" : "Cancelar suscripción (a pedido del cliente)"}
+          </Button>
+        )}
+        {mensaje && <span className="text-[12px] text-text-secondary">{mensaje}</span>}
+      </div>
+
+      <div>
+        <p className="mb-2 flex items-center gap-1.5 text-[12px] font-medium text-text-secondary">
+          <FileText size={13} />
+          Historial de pagos
+        </p>
+        {pagos === null ? (
+          <p className="text-[12px] text-text-muted">Cargando…</p>
+        ) : pagos.length === 0 ? (
+          <p className="text-[12px] text-text-muted">Todavía no hay pagos registrados.</p>
+        ) : (
+          <div className="space-y-1">
+            {pagos.map((p) => (
+              <div
+                key={p.id}
+                className="flex items-center justify-between rounded-btn bg-white/5 px-3 py-1.5 text-[12px]"
+              >
+                <span className="text-text-secondary">
+                  {new Date(p.created_at).toLocaleDateString("es-AR")}
+                </span>
+                <span className="tabular-nums">{formatoPesos(p.monto)}</span>
+                <span className="text-text-muted">{p.estado}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

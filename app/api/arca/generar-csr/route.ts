@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import forge from "node-forge";
 import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase-server";
+import { exigirAdmin } from "@/lib/authz";
 
 export const runtime = "nodejs";
 
 // Genera una clave RSA 2048 + CSR para tramitar el certificado en ARCA.
 // La clave privada queda guardada en arca_credenciales (solo service_role);
-// el CSR se devuelve como archivo descargable.
+// el CSR se devuelve como archivo descargable. Solo el admin del negocio
+// puede regenerarla (invalida el certificado vigente).
 export async function POST() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -16,17 +18,18 @@ export async function POST() {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
-  const { data: usuario } = await supabase
-    .from("usuarios")
-    .select("negocio_id, negocios(nombre, cuit, razon_social)")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!usuario?.negocio_id) {
-    return NextResponse.json({ error: "Usuario sin negocio" }, { status: 400 });
+  const authz = await exigirAdmin(supabase, user.id);
+  if (!authz.ok) {
+    return NextResponse.json({ error: authz.error }, { status: authz.status });
   }
 
-  const negocio = usuario.negocios as unknown as {
+  const { data: negocioData } = await supabase
+    .from("negocios")
+    .select("nombre, cuit, razon_social")
+    .eq("id", authz.usuario.negocio_id)
+    .maybeSingle();
+
+  const negocio = negocioData as {
     nombre: string;
     cuit: string | null;
     razon_social: string | null;
@@ -58,7 +61,7 @@ export async function POST() {
   // La clave privada nunca viaja al browser: se guarda con service_role
   const admin = createSupabaseAdminClient();
   const { error } = await admin.from("arca_credenciales").upsert({
-    negocio_id: usuario.negocio_id,
+    negocio_id: authz.usuario.negocio_id,
     key_pem: keyPem,
     cert_pem: null, // el certificado anterior deja de corresponder a esta clave
     updated_at: new Date().toISOString(),

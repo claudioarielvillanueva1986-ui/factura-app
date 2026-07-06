@@ -9,8 +9,10 @@ import {
   MessageCircle,
   Settings,
   LogOut,
+  ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
+import { useEsAdminPlataforma } from "@/lib/useEsAdminPlataforma";
 import { Logo } from "@/components/ui/Logo";
 import { Splash } from "@/components/ui/Splash";
 
@@ -27,6 +29,7 @@ export default function DashboardLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const pathname = usePathname();
   const { user, negocio, loading, logout } = useAuth();
+  const esAdminPlataforma = useEsAdminPlataforma();
 
   // Splash mientras se resuelve la sesión: evita el flash de layout vacío
   if (loading) return <Splash />;
@@ -66,6 +69,15 @@ export default function DashboardLayout({
         </nav>
 
         <div className="border-t border-line px-5 py-4">
+          {esAdminPlataforma && (
+            <Link
+              href="/admin"
+              className="mb-3 flex items-center gap-2 text-[12px] text-brand-hover hover:underline"
+            >
+              <ShieldCheck size={14} />
+              Panel admin
+            </Link>
+          )}
           <p className="mb-2 truncate text-[11px] text-text-muted">{user?.email}</p>
           <button
             onClick={logout}
@@ -85,13 +97,24 @@ export default function DashboardLayout({
             {negocio?.nombre ?? "…"}
           </p>
         </div>
-        <button
-          onClick={logout}
-          aria-label="Cerrar sesión"
-          className="rounded-btn p-2 text-text-secondary transition-colors hover:text-status-error"
-        >
-          <LogOut size={17} />
-        </button>
+        <div className="flex items-center gap-1">
+          {esAdminPlataforma && (
+            <Link
+              href="/admin"
+              aria-label="Panel admin"
+              className="rounded-btn p-2 text-brand-hover"
+            >
+              <ShieldCheck size={17} />
+            </Link>
+          )}
+          <button
+            onClick={logout}
+            aria-label="Cerrar sesión"
+            className="rounded-btn p-2 text-text-secondary transition-colors hover:text-status-error"
+          >
+            <LogOut size={17} />
+          </button>
+        </div>
       </header>
 
       {/* ---------- Contenido ---------- */}

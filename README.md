@@ -34,6 +34,8 @@ Supabase o `supabase db push`):
 | `005_mercadopago.sql` | `crear_factura_mp` + `mp_webhook_logs` |
 | `006_produccion.sql` | OAuth de MP (tokens con refresh) + modo ARCA delegado |
 | `007_datos_fiscales.sql` | Domicilio, Ingresos Brutos e inicio de actividades del negocio (encabezado del PDF) |
+| `008_seguridad.sql` | Hardening: oculta tokens de MP, evita autoescalación de rol, congela facturas emitidas, cierra RPCs a `anon` |
+| `009_suscripciones.sql` | `plataforma_admins`, `configuracion_plataforma`, estado de cuenta/trial/gracia en `negocios`, `pagos_suscripcion`, RPCs de administración |
 
 ### Variables de entorno (`.env.local`)
 
@@ -46,7 +48,9 @@ Supabase o `supabase db push`):
 | `NEXT_PUBLIC_PLATAFORMA_CUIT` | CUIT de la plataforma que los clientes autorizan en ARCA |
 | `NEXT_PUBLIC_PLATAFORMA_ALIAS` | Alias del certificado de la plataforma (ej: `factura-prod`) |
 | `PLATAFORMA_AFIP_KEY` / `PLATAFORMA_AFIP_CERT` | Clave + certificado ÚNICOS de la plataforma (modo delegado) |
-| `MP_CLIENT_ID` / `MP_CLIENT_SECRET` | Credenciales de la aplicación de Mercado Pago (OAuth) |
+| `MP_CLIENT_ID` / `MP_CLIENT_SECRET` | Credenciales de la aplicación de Mercado Pago (OAuth, para que los negocios cobren a SUS clientes) |
+| `MP_WEBHOOK_SECRET` | Firma secreta para validar `x-signature` en los webhooks de MP (opcional pero recomendado) |
+| `PLATAFORMA_MP_ACCESS_TOKEN` | Access token de la cuenta PROPIA de MP de la plataforma, para cobrar la suscripción a cada negocio |
 | `NEXT_PUBLIC_APP_URL` | URL pública del deploy (OAuth y webhooks) |
 
 En Netlify configurar las mismas variables en **Site settings → Environment variables**.
@@ -90,10 +94,42 @@ Requiere que el negocio complete Domicilio, Ingresos Brutos e Inicio de
 actividades en Configuración → Negocio (son datos obligatorios del
 encabezado).
 
+## Suscripciones y panel de administración
+
+`/admin` es el panel para gestionar TODOS los negocios de la plataforma
+(distinto del `Configuración` de cada negocio): estado de cuenta, extender
+trial, dar período de gracia, cambiar precio, notas internas, cancelar
+suscripción y ver historial de pagos. Solo lo ve quien esté en la tabla
+`plataforma_admins` — para dar de alta al primer admin (una sola vez, a
+mano, después de que esa persona se haya registrado normalmente en la app):
+
+```sql
+insert into plataforma_admins (usuario_id)
+values ('<uuid del usuario en auth.users>');
+```
+
+**Cobro de la suscripción**: cada negocio, desde Configuración → Suscripción,
+activa el cobro automático mensual (botón que crea un *Preapproval* de
+Mercado Pago y redirige a autorizarlo). Usa la cuenta **propia** de MP de la
+plataforma (`PLATAFORMA_MP_ACCESS_TOKEN`), separada de la que cada negocio
+conecta por OAuth para cobrar a sus propios clientes. Webhook a configurar
+en esa cuenta: `{NEXT_PUBLIC_APP_URL}/api/billing/webhook` (evento
+"Suscripciones"). Mientras el trial y el eventual período de gracia estén
+vigentes (o la suscripción esté activa), el negocio puede emitir facturas;
+fuera de eso, `crear_factura`/`crear_factura_mp` lo bloquean del lado del
+servidor (`cuenta_habilitada_para_facturar`), no solo en la UI.
+
 ## Seguridad
 
 - RLS en todas las tablas: cada negocio ve solo sus filas (`mi_negocio_id()`).
-- `arca_credenciales` y `mp_webhook_logs` **no tienen políticas de cliente**:
-  solo la `service_role` (Netlify Functions) puede leerlas.
+- `arca_credenciales`, `mp_webhook_logs` y `plataforma_admins` **no tienen
+  políticas de cliente**: solo la `service_role` (o las RPCs `SECURITY
+  DEFINER` que las consultan) puede leerlas.
 - La clave privada de ARCA se genera y guarda en el servidor; nunca pasa por el
   navegador (solo se descarga el CSR).
+- Los tokens de Mercado Pago (`access_token`/`refresh_token`) no son legibles
+  desde el cliente; la UI solo ve columnas derivadas (`conectado`, `manual`).
+- Solo el `rol = 'admin'` de un negocio puede tocar configuración sensible
+  (CUIT, ARCA, conectar/desconectar MP) — reforzado por columnas de RLS, no
+  solo por la UI. Las facturas con CAE quedan congeladas por trigger: no se
+  pueden editar montos ni borrarlas desde el cliente.
