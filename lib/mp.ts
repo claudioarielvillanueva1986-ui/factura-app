@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emitirFacturaARCA } from "@/lib/arca";
+import { obtenerOrdenPoint } from "@/lib/mpPoint";
 import { notificarPartner } from "@/lib/partnerWebhook";
 
 // Helpers de Mercado Pago (solo servidor): OAuth de marketplace con refresh
@@ -159,6 +160,18 @@ export async function procesarEventoMP(admin: SupabaseClient, evento: EventoMP) 
 
     if (!negocioId) {
       await log("ignorado: no se pudo resolver el negocio de la notificación");
+      return;
+    }
+
+    // Notificación de una orden Point (terminal física), creada por la
+    // Partner API con metodo="point". Se resuelve aparte de "payment": a
+    // diferencia de un pago suelto, una orden Point siempre está atada a un
+    // cobro (solo la Partner API las crea) y MP puede además mandar, para el
+    // mismo pago subyacente, una notificación "payment" por separado — el
+    // chequeo de idempotencia por facturas.mp_payment_id evita facturar dos
+    // veces si eso pasa.
+    if (evento.tipo === "order") {
+      await procesarOrdenPoint(admin, negocioId, evento, log);
       return;
     }
 
@@ -340,4 +353,167 @@ export async function procesarEventoMP(admin: SupabaseClient, evento: EventoMP) 
   } catch (error) {
     await log("error", error instanceof Error ? error.message : String(error));
   }
+}
+
+interface CobroPointRef {
+  id: string;
+  app_id: string | null;
+  facturar: boolean;
+  external_reference: string | null;
+  monto: number;
+  descripcion: string | null;
+}
+
+// Reconcilia una notificación "order" (Point/Orders API): busca el cobro por
+// mp_order_id, factura si corresponde y notifica al partner. Distinto del
+// flujo de "payment" porque acá el pago viene anidado en la orden
+// (orden.transactions.payments[0]), no como recurso propio.
+async function procesarOrdenPoint(
+  admin: SupabaseClient,
+  negocioId: string,
+  evento: EventoMP,
+  log: (resultado: string, error?: string) => Promise<void>
+) {
+  if (!evento.paymentId) {
+    await log("ignorado: notificación de orden sin id");
+    return;
+  }
+
+  const accessToken = await obtenerAccessTokenMP(admin, negocioId);
+  if (!accessToken) {
+    await log("error", "Negocio sin cuenta de Mercado Pago conectada");
+    return;
+  }
+
+  let orden;
+  try {
+    orden = await obtenerOrdenPoint(accessToken, evento.paymentId);
+  } catch (error) {
+    await log(
+      "error",
+      `No se pudo consultar la orden ${evento.paymentId}: ${error instanceof Error ? error.message : String(error)}`
+    );
+    return;
+  }
+
+  const { data } = await admin
+    .from("cobros")
+    .select("id, app_id, facturar, external_reference, monto, descripcion")
+    .eq("mp_order_id", orden.id)
+    .eq("negocio_id", negocioId)
+    .maybeSingle();
+  const cobro = (data as CobroPointRef | null) ?? null;
+
+  if (!cobro) {
+    await log(`ignorado: orden ${orden.id} sin cobro de la Partner API asociado`);
+    return;
+  }
+
+  const pagoOrden = orden.transactions?.payments?.[0];
+  if (!pagoOrden?.status) {
+    await log(`ignorado: orden ${orden.id} todavía sin pago (status ${orden.status ?? "?"})`);
+    return;
+  }
+
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+  const mpPaymentId = pagoOrden.id ? String(pagoOrden.id) : orden.id;
+
+  if (pagoOrden.status !== "approved") {
+    await admin
+      .from("cobros")
+      .update({ estado: "rechazado", mp_payment_id: mpPaymentId, updated_at: new Date().toISOString() })
+      .eq("id", cobro.id);
+    await notificarPartner(admin, cobro.app_id, {
+      event: "cobro.rechazado",
+      cobro_id: cobro.id,
+      external_reference: cobro.external_reference,
+      estado: "rechazado",
+      mp_payment_id: mpPaymentId,
+      monto: cobro.monto,
+    });
+    await log(`ignorado: orden ${orden.id} con pago en estado ${pagoOrden.status}`);
+    return;
+  }
+
+  await admin
+    .from("cobros")
+    .update({ estado: "aprobado", mp_payment_id: mpPaymentId, updated_at: new Date().toISOString() })
+    .eq("id", cobro.id);
+
+  if (!cobro.facturar) {
+    await notificarPartner(admin, cobro.app_id, {
+      event: "cobro.aprobado",
+      cobro_id: cobro.id,
+      external_reference: cobro.external_reference,
+      estado: "aprobado",
+      mp_payment_id: mpPaymentId,
+      monto: cobro.monto,
+      factura: null,
+    });
+    await admin
+      .from("cobros")
+      .update({ notificado_en: new Date().toISOString() })
+      .eq("id", cobro.id);
+    await log(`cobro Point ${cobro.id} aprobado sin facturación (facturar=false)`);
+    return;
+  }
+
+  // Idempotencia: si ya existe factura para este pago, reutilizarla (puede
+  // pasar si MP también mandó una notificación "payment" para el mismo pago).
+  const { data: existente } = await admin
+    .from("facturas")
+    .select("id")
+    .eq("negocio_id", negocioId)
+    .eq("mp_payment_id", mpPaymentId)
+    .maybeSingle();
+
+  let facturaId: string;
+  if (existente) {
+    facturaId = existente.id as string;
+  } else {
+    const { data: factura, error: errRpc } = await admin.rpc("crear_factura_mp", {
+      p_negocio_id: negocioId,
+      p_payment_id: mpPaymentId,
+      p_monto: cobro.monto,
+      p_descripcion: cobro.descripcion ?? `Cobro Point ${orden.id}`,
+      p_telefono_pagador: null,
+    });
+
+    if (errRpc) {
+      await log("error", `crear_factura_mp (Point): ${errRpc.message}`);
+      return;
+    }
+
+    facturaId = (factura as { id: string }).id;
+    const emision = await emitirFacturaARCA(facturaId);
+    await log(
+      emision.ok
+        ? `facturado (Point): orden ${orden.id} → factura ${facturaId} CAE ${emision.cae}`
+        : `factura ${facturaId} creada (Point) pero falló la emisión`,
+      emision.ok ? undefined : emision.error
+    );
+  }
+
+  const { data: fac } = await admin
+    .from("facturas")
+    .select("id, numero, tipo, cae, cae_vencimiento, total, estado")
+    .eq("id", facturaId)
+    .maybeSingle();
+
+  await admin
+    .from("cobros")
+    .update({ factura_id: facturaId, notificado_en: new Date().toISOString() })
+    .eq("id", cobro.id);
+
+  await notificarPartner(admin, cobro.app_id, {
+    event: "cobro.aprobado",
+    cobro_id: cobro.id,
+    external_reference: cobro.external_reference,
+    estado: "aprobado",
+    mp_payment_id: mpPaymentId,
+    monto: cobro.monto,
+    factura: fac
+      ? { ...fac, pdf_url: appUrl ? `${appUrl}/api/facturas/${facturaId}/pdf` : null }
+      : { id: facturaId },
+  });
 }
