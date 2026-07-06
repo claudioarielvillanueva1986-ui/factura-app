@@ -86,7 +86,11 @@ export default function LoginPage() {
         }
       }
 
-      router.push("/");
+      // Soporte para retorno tras login (ej: flujo OAuth de partner).
+      // Solo rutas internas para evitar open-redirect.
+      const next = new URLSearchParams(window.location.search).get("next");
+      const destino = next && next.startsWith("/") ? next : "/";
+      router.push(destino);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Algo salió mal, probá de nuevo");

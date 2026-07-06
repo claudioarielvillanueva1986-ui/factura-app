@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emitirFacturaARCA } from "@/lib/arca";
+import { notificarPartner } from "@/lib/partnerWebhook";
 
 // Helpers de Mercado Pago (solo servidor): OAuth de marketplace con refresh
 // automático y procesamiento de webhooks. Los tokens viven en
@@ -113,6 +114,12 @@ export async function obtenerAccessTokenMP(
 
 /* ==================== Procesamiento de webhooks ==================== */
 
+interface CobroRef {
+  id: string;
+  app_id: string | null;
+  facturar: boolean;
+}
+
 export interface EventoMP {
   // Uno de los dos, según la ruta que recibió la notificación
   negocioId?: string;
@@ -190,20 +197,83 @@ export async function procesarEventoMP(admin: SupabaseClient, evento: EventoMP) 
       status: string;
       transaction_amount: number;
       description?: string;
+      external_reference?: string;
       payer?: { phone?: { area_code?: string; number?: string } };
     };
 
+    // ¿El pago corresponde a un cobro iniciado por la Partner API?
+    // (external_reference = id del cobro). Se resuelve para actualizar su
+    // estado y notificar a la app externa.
+    let cobro: CobroRef | null = null;
+    if (pago.external_reference) {
+      const { data } = await admin
+        .from("cobros")
+        .select("id, app_id, facturar")
+        .eq("id", pago.external_reference)
+        .eq("negocio_id", negocioId)
+        .maybeSingle();
+      cobro = (data as CobroRef | null) ?? null;
+    }
+
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+
     if (pago.status !== "approved") {
+      if (cobro) {
+        await admin
+          .from("cobros")
+          .update({
+            estado: "rechazado",
+            mp_payment_id: String(evento.paymentId),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", cobro.id);
+        await notificarPartner(admin, cobro.app_id, {
+          event: "cobro.rechazado",
+          cobro_id: cobro.id,
+          estado: "rechazado",
+          mp_payment_id: String(evento.paymentId),
+          monto: pago.transaction_amount,
+        });
+      }
       await log(`ignorado: pago ${evento.paymentId} con status ${pago.status}`);
       return;
     }
 
-    if (!config?.auto_facturar) {
-      await log("ignorado: auto_facturar desactivado");
+    if (cobro) {
+      await admin
+        .from("cobros")
+        .update({
+          estado: "aprobado",
+          mp_payment_id: String(evento.paymentId),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", cobro.id);
+    }
+
+    // Facturar: forzado por el cobro (facturar=true) o por el auto_facturar
+    // del negocio para pagos MP sueltos.
+    const debeFacturar = cobro ? cobro.facturar : !!config?.auto_facturar;
+
+    if (!debeFacturar) {
+      if (cobro) {
+        await notificarPartner(admin, cobro.app_id, {
+          event: "cobro.aprobado",
+          cobro_id: cobro.id,
+          estado: "aprobado",
+          mp_payment_id: String(evento.paymentId),
+          monto: pago.transaction_amount,
+          factura: null,
+        });
+        await admin
+          .from("cobros")
+          .update({ notificado_en: new Date().toISOString() })
+          .eq("id", cobro.id);
+      }
+      await log("cobro aprobado sin facturación (auto_facturar off / facturar=false)");
       return;
     }
 
-    // Idempotencia: si ya existe factura para este pago, no duplicar
+    // Idempotencia: si ya existe factura para este pago, reutilizarla
     const { data: existente } = await admin
       .from("facturas")
       .select("id")
@@ -211,38 +281,58 @@ export async function procesarEventoMP(admin: SupabaseClient, evento: EventoMP) 
       .eq("mp_payment_id", String(evento.paymentId))
       .maybeSingle();
 
+    let facturaId: string;
+    let emisionMsg = "";
     if (existente) {
-      await log(`ignorado: pago ${evento.paymentId} ya facturado (${existente.id})`);
-      return;
+      facturaId = existente.id as string;
+    } else {
+      const telefono = pago.payer?.phone?.number
+        ? `${pago.payer.phone.area_code ?? ""}${pago.payer.phone.number}`
+        : null;
+
+      const { data: factura, error: errRpc } = await admin.rpc("crear_factura_mp", {
+        p_negocio_id: negocioId,
+        p_payment_id: String(evento.paymentId),
+        p_monto: pago.transaction_amount,
+        p_descripcion: pago.description ?? `Pago Mercado Pago ${evento.paymentId}`,
+        p_telefono_pagador: telefono,
+      });
+
+      if (errRpc) {
+        await log("error", `crear_factura_mp: ${errRpc.message}`);
+        return;
+      }
+
+      facturaId = (factura as { id: string }).id;
+      const emision = await emitirFacturaARCA(facturaId);
+      emisionMsg = emision.ok
+        ? `facturado: pago ${evento.paymentId} → factura ${facturaId} CAE ${emision.cae}`
+        : `factura ${facturaId} creada pero falló la emisión`;
+      await log(emisionMsg, emision.ok ? undefined : emision.error);
     }
 
-    const telefono = pago.payer?.phone?.number
-      ? `${pago.payer.phone.area_code ?? ""}${pago.payer.phone.number}`
-      : null;
-
-    const { data: factura, error: errRpc } = await admin.rpc("crear_factura_mp", {
-      p_negocio_id: negocioId,
-      p_payment_id: String(evento.paymentId),
-      p_monto: pago.transaction_amount,
-      p_descripcion: pago.description ?? `Pago Mercado Pago ${evento.paymentId}`,
-      p_telefono_pagador: telefono,
-    });
-
-    if (errRpc) {
-      await log("error", `crear_factura_mp: ${errRpc.message}`);
-      return;
+    // Notificar al partner con los datos de la factura (si el cobro es suyo)
+    if (cobro) {
+      const { data: fac } = await admin
+        .from("facturas")
+        .select("id, numero, tipo, cae, cae_vencimiento, total, estado")
+        .eq("id", facturaId)
+        .maybeSingle();
+      await admin
+        .from("cobros")
+        .update({ factura_id: facturaId, notificado_en: new Date().toISOString() })
+        .eq("id", cobro.id);
+      await notificarPartner(admin, cobro.app_id, {
+        event: "cobro.aprobado",
+        cobro_id: cobro.id,
+        estado: "aprobado",
+        mp_payment_id: String(evento.paymentId),
+        monto: pago.transaction_amount,
+        factura: fac
+          ? { ...fac, pdf_url: appUrl ? `${appUrl}/api/facturas/${facturaId}/pdf` : null }
+          : { id: facturaId },
+      });
     }
-
-    const facturaId = (factura as { id: string }).id;
-    const emision = await emitirFacturaARCA(facturaId);
-
-    await log(
-      emision.ok
-        ? `facturado: pago ${evento.paymentId} → factura ${facturaId} CAE ${emision.cae}` +
-            (telefono ? " (pendiente envío WA)" : "")
-        : `factura ${facturaId} creada pero falló la emisión`,
-      emision.ok ? undefined : emision.error
-    );
   } catch (error) {
     await log("error", error instanceof Error ? error.message : String(error));
   }
