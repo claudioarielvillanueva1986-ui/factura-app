@@ -1,5 +1,42 @@
+import https from "node:https";
+import axios from "axios";
+import * as soap from "soap";
 import { Afip } from "afip.ts";
 import { createSupabaseAdminClient } from "@/lib/supabase-server";
+
+// Los servidores WSAA/WSFE de ARCA todavía negocian TLS con parámetros
+// Diffie-Hellman de menos de 2048 bits (legacy). OpenSSL 3 —el que usa el
+// runtime de Node en Netlify Functions— rechaza esas conexiones por default
+// (nivel de seguridad 2) con "dh key too small".
+//
+// afip.ts no expone forma de pasarle un httpsAgent propio al cliente SOAP
+// que arma internamente, así que envolvemos `soap.createClientAsync` para
+// inyectarle por default un axios con un https.Agent dedicado en SECLEVEL 1.
+// `request` es una opción soportada y tipada por la librería 'soap'
+// ("override the request module"), no un campo interno. Como 'afip.ts' y
+// 'soap' están en `serverExternalPackages` (next.config.ts), nuestro
+// `import * as soap` compila a un `require("soap")` real: mismo objeto de
+// módulo (mismo singleton) que usa afip.ts internamente, así que el parche
+// le llega. Con esto NO tocamos el agente HTTPS global del proceso: todo lo
+// demás (Supabase, etc.) sigue con el nivel de seguridad TLS por default.
+let parcheadoParaArca = false;
+function permitirTlsLegacyDeArca() {
+  if (parcheadoParaArca) return;
+  parcheadoParaArca = true;
+
+  const agenteArca = new https.Agent({ ciphers: "DEFAULT@SECLEVEL=1" });
+  const axiosArca = axios.create({ httpsAgent: agenteArca });
+
+  // TS trata el namespace de un `import * as` como de solo lectura; en
+  // runtime sigue siendo el mismo objeto (mutable) que usa afip.ts.
+  const soapMutable = soap as unknown as { createClientAsync: typeof soap.createClientAsync };
+  const original = soapMutable.createClientAsync;
+  soapMutable.createClientAsync = (url, options, endpoint) => {
+    const opts = { ...(options ?? {}) };
+    if (!opts.request) opts.request = axiosArca;
+    return original(url, opts, endpoint);
+  };
+}
 
 // Mapeo de tipo de factura → código de comprobante WSFE (usado también por
 // el generador de QR del comprobante, RG 4892)
@@ -41,6 +78,13 @@ const ERRORES_ARCA: { patron: RegExp; mensaje: string }[] = [
     mensaje:
       "Error de autenticación con ARCA (WSAA). Suele resolverse reintentando en unos minutos. " +
       "Si persiste, revisá que el certificado esté asociado al servicio 'wsfe'.",
+  },
+  {
+    patron: /dh key too small|tls_process_ske|EPROTO|SSL routines/i,
+    mensaje:
+      "Error de conexión segura con los servidores de ARCA (cifrado TLS incompatible). " +
+      "No es un problema de tu cuenta ni de la delegación — es un ajuste técnico de " +
+      "nuestro lado. Reintentá en un momento; si persiste, contactá a soporte.",
   },
 ];
 
@@ -117,6 +161,7 @@ async function credencialesParaNegocio(
 }
 
 function clienteAfip(keyPem: string, certPem: string, cuit: string) {
+  permitirTlsLegacyDeArca();
   return new Afip({
     key: keyPem,
     cert: certPem,
