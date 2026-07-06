@@ -87,9 +87,10 @@ export default function LoginPage() {
       }
 
       // Soporte para retorno tras login (ej: flujo OAuth de partner).
-      // Solo rutas internas para evitar open-redirect.
+      // Solo rutas internas para evitar open-redirect ("//evil.com" también
+      // empieza con "/" pero el navegador lo trata como protocol-relative).
       const next = new URLSearchParams(window.location.search).get("next");
-      const destino = next && next.startsWith("/") ? next : "/";
+      const destino = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
       router.push(destino);
       router.refresh();
     } catch (err) {
