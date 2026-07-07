@@ -22,6 +22,33 @@ export interface TerminalPoint {
   pos_id?: number | null;
 }
 
+// Cambia el modo de operación de una terminal Point.
+//  - "PDV": integrada, recibe órdenes por API (necesario para crearOrdenPoint).
+//  - "STANDALONE": opera sola, se cobra tocando la terminal a mano.
+// Solo funciona en los modelos habilitados por MP (NEWLAND_N950,
+// INGENICO_MOVE2500, GERTEC_MP35P, PAX_A910, PAX_Q92). Es idempotente: pedir
+// PDV cuando ya está en PDV no rompe nada.
+export async function cambiarModoPoint(
+  accessToken: string,
+  terminalId: string,
+  modo: "PDV" | "STANDALONE"
+): Promise<void> {
+  const res = await fetch(`${MP_API}/point/integration-api/devices/${terminalId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ operating_mode: modo }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(
+      `MP Point operating_mode ${res.status}: ${data.message ?? JSON.stringify(data)}`
+    );
+  }
+}
+
 // Lista las terminales Point vinculadas a la cuenta MP del negocio, para que
 // la app partner pueda ofrecerle al taller elegir en cuál cobrar.
 export async function listarTerminalesPoint(accessToken: string): Promise<TerminalPoint[]> {

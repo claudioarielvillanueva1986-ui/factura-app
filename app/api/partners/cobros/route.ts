@@ -3,7 +3,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase-server";
 import { autenticarPartner } from "@/lib/partnerAuth";
 import { obtenerAccessTokenMP } from "@/lib/mp";
 import { crearPreferenciaCobro } from "@/lib/mpCobros";
-import { crearOrdenPoint } from "@/lib/mpPoint";
+import { crearOrdenPoint, cambiarModoPoint } from "@/lib/mpPoint";
 import { consumirRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
@@ -117,6 +117,17 @@ export async function POST(request: NextRequest) {
     // 2) Mandar la orden a cobrar a la terminal Point, external_reference =
     // id del cobro (igual criterio que la preferencia QR).
     try {
+      // Automático: la terminal debe estar en modo PDV (integrada) para
+      // recibir la orden. La activamos sin que el partner tenga que
+      // configurar nada en Mercado Pago. Best-effort: si la terminal ya está
+      // en PDV o el modelo no lo permite, dejamos que sea el intento de cobro
+      // el que devuelva el error real de MP.
+      try {
+        await cambiarModoPoint(accessToken, terminalId!, "PDV");
+      } catch {
+        /* se intenta cobrar igual; si de verdad no está lista, falla abajo */
+      }
+
       const orden = await crearOrdenPoint(accessToken, {
         terminalId: terminalId!,
         monto,

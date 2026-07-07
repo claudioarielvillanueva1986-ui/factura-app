@@ -124,6 +124,22 @@ ofrecerle al taller elegir en cuál cobrar). El `id` de cada terminal es el
                     "operating_mode":"STANDALONE", "store_id":null, "pos_id":null } ] }
 ```
 
+### `PATCH /api/partners/terminales`  · scope `cobros`
+Cambia el modo de operación de una terminal. **Normalmente no hace falta**:
+crear un cobro Point ya pone la terminal en `PDV` automáticamente. Se expone
+para casos donde quieras controlarlo (ej. devolverla a `STANDALONE` para
+cobros manuales).
+
+```json
+// request
+{ "terminal_id":"NEWLAND_N950__N950NCB801293324", "modo":"PDV" }  // "PDV" | "STANDALONE"
+// response
+{ "terminal_id":"NEWLAND_N950__N950NCB801293324", "modo":"PDV" }
+```
+`PDV` = integrada (recibe órdenes por API). `STANDALONE` = se cobra tocando la
+terminal a mano. Solo funciona en los modelos que MP habilita para integración
+(NEWLAND_N950, INGENICO_MOVE2500, GERTEC_MP35P, PAX_A910, PAX_Q92).
+
 ### `POST /api/partners/cobros`  · scope `cobros`
 Crea un cobro de Mercado Pago en la cuenta MP del negocio: por default un
 link/QR de Checkout Pro, o —pasando `metodo:"point"`— lo manda a cobrar a una
@@ -156,8 +172,11 @@ confirmación llega por webhook.
 { "cobro_id":"uuid", "estado":"pendiente", "metodo":"point", "order_id":"..." }
 ```
 Con `metodo:"point"` no hay `init_point`: el cobro se dispara directo en la
-terminal del taller. Si el negocio no tiene MP conectado en facturá., o no
-manda `terminal_id`, responde `409`/`400` respectivamente.
+terminal del taller. facturá. **pone la terminal en modo PDV automáticamente**
+antes de mandar la orden, así que no hace falta configurar nada en Mercado
+Pago (tené en cuenta que eso saca a la terminal del modo STANDALONE / cobro
+manual mientras esté integrada). Si el negocio no tiene MP conectado en
+facturá., o no manda `terminal_id`, responde `409`/`400` respectivamente.
 
 > **Nota:** esta integración con Point no se pudo probar de punta a punta
 > contra una terminal física real antes de este release — validá el flujo
