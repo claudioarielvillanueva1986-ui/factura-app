@@ -4,6 +4,7 @@ import { autenticarPartner } from "@/lib/partnerAuth";
 import { obtenerAccessTokenMP } from "@/lib/mp";
 import { crearPreferenciaCobro } from "@/lib/mpCobros";
 import { crearOrdenPoint } from "@/lib/mpPoint";
+import { consumirRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -27,6 +28,15 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { negocioId, appId } = auth.ctx;
+
+  // Rate limit de creación de cobros (llamadas a la API de MP) por negocio.
+  const rl = await consumirRateLimit(admin, `cobros:min:${negocioId}`, 60, 60);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Demasiados cobros en poco tiempo, probá más tarde.", reset_en: rl.resetEn },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeg ?? 60) } }
+    );
+  }
 
   let body: Body;
   try {

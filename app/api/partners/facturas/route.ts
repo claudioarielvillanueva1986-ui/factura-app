@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase-server";
 import { autenticarPartner } from "@/lib/partnerAuth";
 import { emitirFacturaARCA } from "@/lib/arca";
+import { consumirRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 26; // emisión ARCA (WSAA + WSFE)
@@ -27,6 +28,22 @@ export async function POST(request: NextRequest) {
   const admin = createSupabaseAdminClient();
   const auth = await autenticarPartner(admin, request, "facturacion");
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  // Rate limit de emisión: cada llamada crea/emite un comprobante fiscal real
+  // en ARCA. Ráfaga por minuto + tope diario por negocio, para acotar el daño
+  // de un partner comprometido o con un bug en loop.
+  for (const [clave, limite, ventana] of [
+    [`facturas:min:${auth.ctx.negocioId}`, 30, 60],
+    [`facturas:dia:${auth.ctx.negocioId}`, 300, 86400],
+  ] as const) {
+    const rl = await consumirRateLimit(admin, clave, limite, ventana);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: "Límite de emisión alcanzado, probá más tarde.", reset_en: rl.resetEn },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSeg ?? 60) } }
+      );
+    }
+  }
 
   let body: Body;
   try {
