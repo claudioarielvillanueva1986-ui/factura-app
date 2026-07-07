@@ -70,13 +70,17 @@ export async function POST(request: NextRequest) {
         const negocioId = (preapproval as unknown as { external_reference?: string })
           .external_reference;
         if (negocioId) {
-          await admin.from("pagos_suscripcion").insert({
-            negocio_id: negocioId,
-            mp_payment_id: String(dataId),
-            mp_preapproval_id: preapprovalId,
-            monto: pago.transaction_amount ?? 0,
-            estado: pago.status ?? "unknown",
-          });
+          // Idempotente: MP reintenta el webhook si no recibe 200 a tiempo.
+          await admin.from("pagos_suscripcion").upsert(
+            {
+              negocio_id: negocioId,
+              mp_payment_id: String(dataId),
+              mp_preapproval_id: preapprovalId,
+              monto: pago.transaction_amount ?? 0,
+              estado: pago.status ?? "unknown",
+            },
+            { onConflict: "mp_payment_id", ignoreDuplicates: false }
+          );
           if (pago.status === "approved") {
             await admin.from("negocios").update({ estado_cuenta: "activo" }).eq("id", negocioId);
           }

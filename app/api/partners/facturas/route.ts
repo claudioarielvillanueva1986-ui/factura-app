@@ -38,6 +38,26 @@ export async function POST(request: NextRequest) {
   if (!Array.isArray(body.items) || body.items.length === 0) {
     return NextResponse.json({ error: "La factura necesita al menos un ítem" }, { status: 400 });
   }
+  if (body.items.length > 100) {
+    return NextResponse.json({ error: "Demasiados ítems (máximo 100)" }, { status: 400 });
+  }
+
+  // Validar los ítems acá (y no dejar que reviente el cast en el RPC) evita a
+  // la vez filtrar errores internos de Postgres y facturar basura.
+  for (const [i, it] of body.items.entries()) {
+    const item = it as { descripcion?: unknown; cantidad?: unknown; precio_unitario?: unknown };
+    const cantidad = Number(item.cantidad);
+    const precio = Number(item.precio_unitario);
+    if (typeof item.descripcion !== "string" || item.descripcion.trim() === "") {
+      return NextResponse.json({ error: `Ítem ${i + 1}: descripción inválida` }, { status: 400 });
+    }
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      return NextResponse.json({ error: `Ítem ${i + 1}: cantidad inválida` }, { status: 400 });
+    }
+    if (!Number.isFinite(precio) || precio < 0) {
+      return NextResponse.json({ error: `Ítem ${i + 1}: precio unitario inválido` }, { status: 400 });
+    }
+  }
 
   const { data: facturaData, error: errRpc } = await admin.rpc("crear_factura_partner", {
     p_negocio_id: auth.ctx.negocioId,

@@ -63,6 +63,9 @@ export async function POST(request: NextRequest) {
 
     return err("unsupported_grant_type");
   } catch (e) {
-    return err(e instanceof Error ? e.message : "invalid_grant", 400);
+    // No filtrar detalles internos (errores de Postgres, etc.) al cliente:
+    // se loguean server-side y se devuelve el código OAuth estándar.
+    console.error("Error en /api/oauth/token:", e);
+    return err("invalid_grant", 400);
   }
 }

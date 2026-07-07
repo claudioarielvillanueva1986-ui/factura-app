@@ -15,7 +15,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
-  const { factura_id } = (await request.json()) as { factura_id?: string };
+  const body = (await request.json().catch(() => ({}))) as { factura_id?: string };
+  const factura_id = body.factura_id;
   if (!factura_id) {
     return NextResponse.json({ error: "Falta factura_id" }, { status: 400 });
   }

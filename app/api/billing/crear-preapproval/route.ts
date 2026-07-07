@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase-server";
-import { crearPreapproval } from "@/lib/mpSuscripcion";
+import { crearPreapproval, obtenerPreapproval } from "@/lib/mpSuscripcion";
 import { exigirAdmin } from "@/lib/authz";
 
 export const runtime = "nodejs";
@@ -24,11 +24,32 @@ export async function POST() {
   const admin = createSupabaseAdminClient();
   const { data: negocio } = await admin
     .from("negocios")
-    .select("id, precio_mensual")
+    .select("id, precio_mensual, mp_preapproval_id")
     .eq("id", authz.usuario.negocio_id)
     .maybeSingle();
   if (!negocio) {
     return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 });
+  }
+
+  // Evitar dobles suscripciones: si ya hay un preapproval, chequear su estado
+  // real en MP. Si está autorizado, no crear otro (quedarían dos cobrando y la
+  // cancelación local solo apuntaría al nuevo). Si está pendiente, reutilizar
+  // su init_point. Solo si está cancelado/pausado se crea uno nuevo.
+  if (negocio.mp_preapproval_id) {
+    try {
+      const actual = await obtenerPreapproval(negocio.mp_preapproval_id);
+      if (actual.status === "authorized") {
+        return NextResponse.json(
+          { error: "Ya tenés una suscripción activa.", estado: "authorized" },
+          { status: 409 }
+        );
+      }
+      if (actual.status === "pending" && actual.init_point) {
+        return NextResponse.json({ init_point: actual.init_point, reutilizado: true });
+      }
+    } catch {
+      // Si no se pudo consultar (id viejo/borrado en MP), seguimos y creamos uno nuevo.
+    }
   }
 
   const { data: config } = await admin

@@ -120,6 +120,7 @@ interface CobroRef {
   app_id: string | null;
   facturar: boolean;
   external_reference: string | null;
+  notificado_en: string | null;
 }
 
 export interface EventoMP {
@@ -222,11 +223,22 @@ export async function procesarEventoMP(admin: SupabaseClient, evento: EventoMP) 
     if (pago.external_reference) {
       const { data } = await admin
         .from("cobros")
-        .select("id, app_id, facturar, external_reference")
+        .select("id, app_id, facturar, external_reference, notificado_en")
         .eq("id", pago.external_reference)
         .eq("negocio_id", negocioId)
         .maybeSingle();
       cobro = (data as CobroRef | null) ?? null;
+    }
+
+    // Guard de reproceso: si al partner ya se le notificó el resultado final
+    // de este cobro (notificado_en seteado), evitar reenviarlo ante reintentos
+    // de MP. Se usa notificado_en y no el estado porque el estado se marca
+    // antes de emitir la factura: si el proceso se cortara en el medio, el
+    // retry debe poder retomar. (La idempotencia por mp_payment_id evita la
+    // doble emisión.)
+    if (cobro && cobro.notificado_en) {
+      await log(`ignorado: cobro ${cobro.id} ya notificado al partner`);
+      return;
     }
 
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
@@ -238,6 +250,7 @@ export async function procesarEventoMP(admin: SupabaseClient, evento: EventoMP) 
           .update({
             estado: "rechazado",
             mp_payment_id: String(evento.paymentId),
+            notificado_en: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
           .eq("id", cobro.id);
@@ -362,6 +375,7 @@ interface CobroPointRef {
   external_reference: string | null;
   monto: number;
   descripcion: string | null;
+  notificado_en: string | null;
 }
 
 // Reconcilia una notificación "order" (Point/Orders API): busca el cobro por
@@ -398,7 +412,7 @@ async function procesarOrdenPoint(
 
   const { data } = await admin
     .from("cobros")
-    .select("id, app_id, facturar, external_reference, monto, descripcion")
+    .select("id, app_id, facturar, external_reference, monto, descripcion, notificado_en")
     .eq("mp_order_id", orden.id)
     .eq("negocio_id", negocioId)
     .maybeSingle();
@@ -406,6 +420,15 @@ async function procesarOrdenPoint(
 
   if (!cobro) {
     await log(`ignorado: orden ${orden.id} sin cobro de la Partner API asociado`);
+    return;
+  }
+
+  // Guard de reproceso: si al partner ya se le notificó el resultado final de
+  // este cobro, no repetir. MP puede notificar la orden y el pago subyacente
+  // por separado o reintentar. Se usa notificado_en (no el estado) porque el
+  // estado se marca antes de emitir la factura.
+  if (cobro.notificado_en) {
+    await log(`ignorado: orden ${orden.id} con cobro ya notificado al partner`);
     return;
   }
 
@@ -417,11 +440,19 @@ async function procesarOrdenPoint(
 
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
   const mpPaymentId = pagoOrden.id ? String(pagoOrden.id) : orden.id;
+  // Monto REALMENTE cobrado en la terminal (no el que registró el partner):
+  // igual criterio que el flujo QR, que factura pago.transaction_amount.
+  const montoReal = Number(pagoOrden.amount) > 0 ? Number(pagoOrden.amount) : cobro.monto;
 
   if (pagoOrden.status !== "approved") {
     await admin
       .from("cobros")
-      .update({ estado: "rechazado", mp_payment_id: mpPaymentId, updated_at: new Date().toISOString() })
+      .update({
+        estado: "rechazado",
+        mp_payment_id: mpPaymentId,
+        notificado_en: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", cobro.id);
     await notificarPartner(admin, cobro.app_id, {
       event: "cobro.rechazado",
@@ -447,7 +478,7 @@ async function procesarOrdenPoint(
       external_reference: cobro.external_reference,
       estado: "aprobado",
       mp_payment_id: mpPaymentId,
-      monto: cobro.monto,
+      monto: montoReal,
       factura: null,
     });
     await admin
@@ -474,7 +505,7 @@ async function procesarOrdenPoint(
     const { data: factura, error: errRpc } = await admin.rpc("crear_factura_mp", {
       p_negocio_id: negocioId,
       p_payment_id: mpPaymentId,
-      p_monto: cobro.monto,
+      p_monto: montoReal,
       p_descripcion: cobro.descripcion ?? `Cobro Point ${orden.id}`,
       p_telefono_pagador: null,
     });
@@ -511,7 +542,7 @@ async function procesarOrdenPoint(
     external_reference: cobro.external_reference,
     estado: "aprobado",
     mp_payment_id: mpPaymentId,
-    monto: cobro.monto,
+    monto: montoReal,
     factura: fac
       ? { ...fac, pdf_url: appUrl ? `${appUrl}/api/facturas/${facturaId}/pdf` : null }
       : { id: facturaId },

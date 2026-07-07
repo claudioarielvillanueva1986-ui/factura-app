@@ -7,15 +7,24 @@ import type { NextRequest } from "next/server";
 // configura una única vez en el panel de la aplicación de MP → Webhooks, y
 // se guarda en MP_WEBHOOK_SECRET.
 //
-// Si la env var no está configurada, no se bloquea la notificación (la
-// mitigación principal —consultar el pago real contra la API de MP antes de
-// facturar— sigue vigente), pero se loguea un aviso para que se complete la
-// configuración.
+// Si la env var no está configurada: en producción se RECHAZA la notificación
+// (fail-closed) para no dejar el endpoint abierto a spam/replay; en desarrollo
+// se deja pasar con un aviso para no trabar las pruebas locales. La mitigación
+// de fondo (consultar el pago/preapproval real contra la API de MP antes de
+// actuar) sigue vigente en ambos casos.
 export function verificarFirmaMP(request: NextRequest, dataId: string | null): boolean {
   const secreto = process.env.MP_WEBHOOK_SECRET;
   if (!secreto) {
+    const esProduccion =
+      process.env.AFIP_MODE === "production" || process.env.NODE_ENV === "production";
+    if (esProduccion) {
+      console.error(
+        "MP_WEBHOOK_SECRET no configurado en producción: se rechaza la notificación del webhook de Mercado Pago."
+      );
+      return false;
+    }
     console.warn(
-      "MP_WEBHOOK_SECRET no configurado: no se valida la firma del webhook de Mercado Pago."
+      "MP_WEBHOOK_SECRET no configurado: no se valida la firma del webhook de Mercado Pago (solo desarrollo)."
     );
     return true;
   }

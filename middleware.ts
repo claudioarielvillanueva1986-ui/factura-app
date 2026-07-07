@@ -63,8 +63,10 @@ export const config = {
      * - /oauth/autorizar (página pública: valida la sesión ella misma y
      *   muestra su propio flujo de login si hace falta, preservando los
      *   parámetros de la solicitud OAuth)
+     * - /api/facturas/{id}/pdf (se autentica solo: sesión O Bearer de partner;
+     *   la pdf_url se comparte a apps del ecosistema, que no tienen cookie)
      * Los endpoints de /api/arca validan sesión por su cuenta.
      */
-    "/((?!_next/static|_next/image|favicon.ico|api/mp/webhook|api/billing/webhook|api/oauth/token|api/partners|oauth/autorizar|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/mp/webhook|api/billing/webhook|api/oauth/token|api/partners|api/facturas/[^/]+/pdf|oauth/autorizar|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

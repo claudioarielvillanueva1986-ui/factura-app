@@ -259,6 +259,25 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
     };
   }
 
+  // Claim atómico contra doble emisión: entre chequear el estado y guardar el
+  // CAE pasan varios segundos (WSAA + WSFE). Dos requests concurrentes (doble
+  // click, retry por timeout) autorizarían DOS comprobantes distintos en AFIP.
+  // El UPDATE condicional solo lo gana uno: Postgres serializa las filas y el
+  // segundo ve el lock ya tomado. El lock se libera solo si quedó viejo (>2
+  // min: emisión colgada) para permitir reintentos legítimos.
+  const lockPrevio = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const { data: claim } = await admin
+    .from("facturas")
+    .update({ emision_lock_at: new Date().toISOString() })
+    .eq("id", facturaId)
+    .in("estado", ["borrador", "error"])
+    .or(`emision_lock_at.is.null,emision_lock_at.lt.${lockPrevio}`)
+    .select("id");
+
+  if (!claim || claim.length === 0) {
+    return { ok: false, error: "La factura ya se está emitiendo. Esperá unos segundos y verificá el estado." };
+  }
+
   const negocio = factura.negocios;
   if (!negocio?.cuit) {
     return await marcarError(admin, facturaId, "Configurá el CUIT del negocio en Configuración antes de emitir.");
@@ -327,6 +346,7 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
         estado: "emitida",
         error_mensaje: null,
         numero: numeroAfip,
+        emision_lock_at: null,
       })
       .eq("id", facturaId);
 
@@ -346,9 +366,10 @@ async function marcarError(
   facturaId: string,
   mensaje: string
 ): Promise<ResultadoEmision> {
+  // Libera el lock de emisión para permitir un reintento inmediato.
   await admin
     .from("facturas")
-    .update({ estado: "error", error_mensaje: mensaje })
+    .update({ estado: "error", error_mensaje: mensaje, emision_lock_at: null })
     .eq("id", facturaId);
   return { ok: false, error: mensaje };
 }
