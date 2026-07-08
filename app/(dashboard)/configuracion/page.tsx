@@ -505,6 +505,7 @@ function TabMercadoPago() {
     mp_user_id: string | null;
     expira_en: string | null;
     auto_facturar: boolean;
+    facturar_transferencias: boolean;
   } | null>(null);
   const [accessToken, setAccessToken] = useState("");
   const [guardado, setGuardado] = useState(false);
@@ -519,7 +520,7 @@ function TabMercadoPago() {
     // y 'manual' son columnas generadas en la base a partir de su presencia.
     const { data } = await supabase
       .from("mercadopago_config")
-      .select("auto_facturar, mp_user_id, expira_en, conectado, manual")
+      .select("auto_facturar, facturar_transferencias, mp_user_id, expira_en, conectado, manual")
       .eq("negocio_id", negocio.id)
       .maybeSingle();
     setConfig({
@@ -528,6 +529,7 @@ function TabMercadoPago() {
       mp_user_id: data?.mp_user_id ?? null,
       expira_en: data?.expira_en ?? null,
       auto_facturar: data?.auto_facturar ?? false,
+      facturar_transferencias: data?.facturar_transferencias ?? false,
     });
   }, [negocio]);
 
@@ -542,6 +544,17 @@ function TabMercadoPago() {
     await supabase.from("mercadopago_config").upsert({
       negocio_id: negocio.id,
       auto_facturar: nuevo,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  async function toggleTransferencias() {
+    if (!negocio || !config) return;
+    const nuevo = !config.facturar_transferencias;
+    setConfig({ ...config, facturar_transferencias: nuevo });
+    await supabase.from("mercadopago_config").upsert({
+      negocio_id: negocio.id,
+      facturar_transferencias: nuevo,
       updated_at: new Date().toISOString(),
     });
   }
@@ -671,6 +684,35 @@ function TabMercadoPago() {
             />
           </button>
         </label>
+
+        {/* Sub-toggle: transferencias entrantes (solo relevante con auto on) */}
+        {config?.auto_facturar && (
+          <label className="mt-4 flex cursor-pointer items-center justify-between border-t border-line pt-4">
+            <div className="pr-3">
+              <p className="text-[13px] font-medium">Facturar transferencias entrantes</p>
+              <p className="text-[11px] text-text-muted">
+                Si está apagado, las transferencias que recibís (de un familiar, de otra
+                cuenta tuya) no se facturan. Las ventas por QR, link o posnet se facturan igual.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={config?.facturar_transferencias ?? false}
+              onClick={toggleTransferencias}
+              disabled={!esAdmin}
+              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                config?.facturar_transferencias ? "bg-brand" : "bg-white/10"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+                  config?.facturar_transferencias ? "left-[22px]" : "left-0.5"
+                }`}
+              />
+            </button>
+          </label>
+        )}
       </Card>
 
       {/* Modo manual (avanzado) */}
