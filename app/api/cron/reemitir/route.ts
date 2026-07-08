@@ -26,10 +26,13 @@ export async function POST(request: NextRequest) {
 
   const admin = createSupabaseAdminClient();
 
+  // Reintenta las que quedaron en 'error' y también las 'pendientes de ARCA'
+  // (borrador con aviso, en la ventana de propagación de 24 hs). Un borrador
+  // manual recién creado tiene error_mensaje NULL, así que no se toca.
   let query = admin
     .from("facturas")
     .select("id")
-    .eq("estado", "error")
+    .or("estado.eq.error,and(estado.eq.borrador,error_mensaje.not.is.null)")
     .order("created_at", { ascending: true })
     .limit(limit);
   if (negocioId) query = query.eq("negocio_id", negocioId);
