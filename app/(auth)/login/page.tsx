@@ -101,7 +101,8 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-[380px]">
+      <div className="bg-ambient" aria-hidden />
+      <div className="w-full max-w-[380px] animate-fade-up">
         <div className="mb-8 text-center">
           <Logo size="text-3xl" />
           <p className="mt-2 text-[13px] text-text-secondary">
@@ -109,7 +110,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div className="rounded-card border border-line bg-surface p-6">
+        <div className="surface-ring card-glass rounded-card border border-line/60 p-6">
           {/* Tabs login / registro */}
           <div className="mb-5 grid grid-cols-2 gap-1 rounded-btn bg-[#1A2235] p-1">
             {(["login", "registro"] as Modo[]).map((m) => (

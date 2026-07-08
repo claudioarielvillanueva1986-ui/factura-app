@@ -147,7 +147,7 @@ function TabNegocio() {
   return (
     <div className="space-y-4">
       {!esAdmin && <AvisoSoloAdmin />}
-      <Card>
+      <Card glass>
       <fieldset disabled={!esAdmin} className="space-y-3.5 disabled:opacity-60">
       <form onSubmit={guardar} className="space-y-3.5">
         <Input
@@ -377,7 +377,7 @@ function CertificadoPropio() {
 
   return (
     <div className="space-y-4">
-      <Card>
+      <Card glass>
         <PasoHeader numero={1} titulo="Generá tu solicitud de certificado (CSR)" ok={paso1Ok} />
         <p className="mb-3 text-[12px] text-text-secondary">
           Generamos una clave RSA 2048 y la guardamos cifrada en el servidor (nunca pasa
@@ -390,7 +390,7 @@ function CertificadoPropio() {
         </Button>
       </Card>
 
-      <Card>
+      <Card glass>
         <PasoHeader numero={2} titulo="Subí el CSR a ARCA" ok={paso3Ok} />
         <ol className="ml-4 list-decimal space-y-1.5 text-[12px] text-text-secondary">
           <li>
@@ -421,7 +421,7 @@ function CertificadoPropio() {
         </ol>
       </Card>
 
-      <Card>
+      <Card glass>
         <PasoHeader numero={3} titulo="Subí el certificado (.crt)" ok={paso3Ok} />
         <label
           className={`inline-flex cursor-pointer items-center gap-2 rounded-btn px-4 py-2 text-[13px] font-medium transition-colors ${
@@ -445,7 +445,7 @@ function CertificadoPropio() {
         )}
       </Card>
 
-      <Card>
+      <Card glass>
         <PasoHeader numero={4} titulo="Probá la conexión" ok={verificado} />
         <Button onClick={onProbar} disabled={probando || !paso3Ok}>
           <Plug size={14} />
@@ -606,7 +606,7 @@ function TabMercadoPago() {
       )}
 
       {/* Conexión OAuth */}
-      <Card>
+      <Card glass>
         <h2 className="mb-2 text-[13px] font-semibold">Cuenta de Mercado Pago</h2>
 
         {config?.conectado && !config.manual ? (
@@ -659,7 +659,7 @@ function TabMercadoPago() {
       </Card>
 
       {/* Auto-facturación */}
-      <Card>
+      <Card glass>
         <label className="flex cursor-pointer items-center justify-between">
           <div>
             <p className="text-[13px] font-medium">Facturación automática</p>
@@ -830,7 +830,7 @@ function TabSuscripcion() {
     <div className="space-y-4">
       {!esAdmin && <AvisoSoloAdmin />}
 
-      <Card className="space-y-3">
+      <Card glass className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-[14px] font-semibold">Tu plan</h2>
           <span
