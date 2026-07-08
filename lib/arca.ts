@@ -227,6 +227,19 @@ async function persistirTA(admin: AdminClient, cuit: string) {
   );
 }
 
+// Diagnóstico: guarda el error CRUDO de ARCA (no el amigable) para poder
+// verlo por SQL. Best-effort, nunca rompe la emisión.
+async function logArcaRaw(admin: AdminClient, facturaId: string, raw: string) {
+  try {
+    await admin.from("mp_polling_logs").insert({
+      resultado: `arca_raw factura=${facturaId}`,
+      error: raw.slice(0, 1500),
+    });
+  } catch {
+    /* best-effort */
+  }
+}
+
 function clienteAfip(keyPem: string, certPem: string, cuit: string) {
   permitirTlsLegacyDeArca();
   return new Afip({
@@ -406,6 +419,7 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
 
     if (!resultado.cae) {
       const detalle = JSON.stringify(resultado.response ?? {});
+      await logArcaRaw(admin, facturaId, `WSFE sin CAE: ${detalle}`);
       return await marcarError(admin, facturaId, mensajeErrorARCA(detalle));
     }
 
@@ -430,6 +444,8 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
       numero: numeroAfip,
     };
   } catch (error) {
+    const raw = error instanceof Error ? `${error.message}` : String(error);
+    await logArcaRaw(admin, facturaId, `catch: ${raw}`);
     return await marcarError(admin, facturaId, mensajeErrorARCA(error));
   }
 }
