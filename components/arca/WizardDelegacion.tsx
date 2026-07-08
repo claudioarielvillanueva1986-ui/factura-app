@@ -109,7 +109,7 @@ export function WizardDelegacion() {
 
   if (verificado) {
     return (
-      <Card className="space-y-3 text-center">
+      <Card glass className="animate-fade-up space-y-3 text-center">
         <PartyPopper size={36} className="mx-auto text-status-ok" />
         <div>
           <h2 className="text-[15px] font-semibold">¡ARCA conectado!</h2>
@@ -141,7 +141,7 @@ export function WizardDelegacion() {
   return (
     <div className="space-y-4">
       {/* Intro + progreso */}
-      <Card className="space-y-2">
+      <Card glass className="animate-fade-up space-y-2">
         <h2 className="text-[14px] font-semibold">Conectá tu facturación con ARCA</h2>
         <p className="text-[12px] text-text-secondary">
           Es un trámite de <strong>una sola vez, ~5 minutos</strong>, en el sitio de ARCA.
@@ -324,7 +324,7 @@ export function WizardDelegacion() {
       </Paso>
 
       {/* Verificación final */}
-      <Card className="space-y-3 border-brand/30">
+      <Card glass className="animate-fade-up space-y-3 border-brand/30 shadow-glow-sm">
         <div className="flex items-center gap-2.5">
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-dim text-[12px] font-semibold text-brand-hover">
             ✓
@@ -380,7 +380,11 @@ function Paso({
   children: React.ReactNode;
 }) {
   return (
-    <Card className={`space-y-3 transition-opacity ${hecho ? "opacity-70" : ""}`}>
+    <Card
+      glass
+      className={`animate-fade-up space-y-3 transition-opacity ${hecho ? "opacity-70" : ""}`}
+      style={{ animationDelay: `${numero * 50}ms` }}
+    >
       <div className="flex items-center gap-2.5">
         <span
           className={`flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-semibold ${
