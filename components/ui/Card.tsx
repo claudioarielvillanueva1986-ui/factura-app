@@ -1,9 +1,19 @@
 import type { HTMLAttributes } from "react";
 
-export function Card({ className = "", ...props }: HTMLAttributes<HTMLDivElement>) {
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
+  // Superficie con borde-gradiente + vidrio (para cards destacadas)
+  glass?: boolean;
+  // Elevación springy al pasar el mouse
+  hover?: boolean;
+}
+
+export function Card({ className = "", glass = false, hover = false, ...props }: CardProps) {
+  const base = glass
+    ? "surface-ring card-glass border border-line/60"
+    : "border border-line bg-surface";
   return (
     <div
-      className={`rounded-card border border-line bg-surface p-5 ${className}`}
+      className={`rounded-card p-5 ${base} ${hover ? "hover-lift" : ""} ${className}`}
       {...props}
     />
   );

@@ -38,6 +38,10 @@ const config: Config = {
         card: "12px",
         btn: "8px",
       },
+      boxShadow: {
+        glow: "0 16px 36px -18px rgba(124, 58, 237, 0.45)",
+        "glow-sm": "0 8px 24px -12px rgba(124, 58, 237, 0.55)",
+      },
     },
   },
   plugins: [],

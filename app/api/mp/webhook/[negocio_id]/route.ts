@@ -34,9 +34,16 @@ export async function POST(
     request.nextUrl.searchParams.get("data.id") ??
     request.nextUrl.searchParams.get("id");
 
+  // Firma informativa: si no valida se registra pero se procesa igual (la
+  // seguridad real es la re-consulta del pago contra la API de MP).
   if (!verificarFirmaMP(request, paymentId != null ? String(paymentId) : null)) {
-    console.warn("Webhook MP (manual): firma inválida, se descarta la notificación.");
-    return NextResponse.json({ ok: true });
+    console.warn("Webhook MP (manual): firma inválida; se procesa igual (se revalida contra la API de MP).");
+    await admin.from("mp_webhook_logs").insert({
+      negocio_id: negocio_id,
+      payload: { tipo, paymentId, ...payload },
+      resultado: "aviso: firma inválida (se procesa igual)",
+      error: "x-signature no coincide o MP_WEBHOOK_SECRET ausente/incorrecto",
+    });
   }
 
   await procesarEventoMP(admin, {

@@ -21,9 +21,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: authz.error }, { status: authz.status });
   }
 
-  const { negocio_id } = (await request.json()) as { negocio_id?: string };
-  if (!negocio_id) {
-    return NextResponse.json({ error: "Falta negocio_id" }, { status: 400 });
+  const body = (await request.json().catch(() => ({}))) as { negocio_id?: string };
+  const negocio_id = body.negocio_id;
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!negocio_id || !UUID_RE.test(negocio_id)) {
+    return NextResponse.json({ error: "negocio_id inválido" }, { status: 400 });
   }
 
   const admin = createSupabaseAdminClient();
@@ -33,7 +35,11 @@ export async function POST(request: NextRequest) {
     .eq("id", negocio_id)
     .maybeSingle();
 
-  if (negocio?.mp_preapproval_id) {
+  if (!negocio) {
+    return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 });
+  }
+
+  if (negocio.mp_preapproval_id) {
     try {
       await cancelarPreapproval(negocio.mp_preapproval_id);
     } catch (error) {
@@ -43,13 +49,17 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  await admin
+  const { error: errUpd } = await admin
     .from("negocios")
     .update({
       estado_cuenta: "cancelado",
       suscripcion_cancelada_en: new Date().toISOString(),
     })
     .eq("id", negocio_id);
+
+  if (errUpd) {
+    return NextResponse.json({ error: "No se pudo cancelar la suscripción" }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true });
 }

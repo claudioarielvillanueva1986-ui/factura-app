@@ -114,12 +114,40 @@ ARCA conectado o el trial venció, responde `422` con el motivo.
 ### `GET /api/partners/facturas/{id}`  · scope `lectura`
 Estado de una factura (para reconciliación) + `pdf_url`.
 
-### `POST /api/partners/cobros`  · scope `cobros`
-Crea un cobro de Mercado Pago (link/QR de Checkout Pro) en la cuenta MP del
-negocio. La confirmación llega por webhook.
+### `GET /api/partners/terminales`  · scope `cobros`
+Lista las terminales Point vinculadas a la cuenta MP del negocio (para
+ofrecerle al taller elegir en cuál cobrar). El `id` de cada terminal es el
+`terminal_id` que se usa en `POST /api/partners/cobros`.
+
+```json
+{ "terminales": [ { "id":"NEWLAND_N950__N950NCB801293324",
+                    "operating_mode":"STANDALONE", "store_id":null, "pos_id":null } ] }
+```
+
+### `PATCH /api/partners/terminales`  · scope `cobros`
+Cambia el modo de operación de una terminal. **Normalmente no hace falta**:
+crear un cobro Point ya pone la terminal en `PDV` automáticamente. Se expone
+para casos donde quieras controlarlo (ej. devolverla a `STANDALONE` para
+cobros manuales).
 
 ```json
 // request
+{ "terminal_id":"NEWLAND_N950__N950NCB801293324", "modo":"PDV" }  // "PDV" | "STANDALONE"
+// response
+{ "terminal_id":"NEWLAND_N950__N950NCB801293324", "modo":"PDV" }
+```
+`PDV` = integrada (recibe órdenes por API). `STANDALONE` = se cobra tocando la
+terminal a mano. Solo funciona en los modelos que MP habilita para integración
+(NEWLAND_N950, INGENICO_MOVE2500, GERTEC_MP35P, PAX_A910, PAX_Q92).
+
+### `POST /api/partners/cobros`  · scope `cobros`
+Crea un cobro de Mercado Pago en la cuenta MP del negocio: por default un
+link/QR de Checkout Pro, o —pasando `metodo:"point"`— lo manda a cobrar a una
+terminal física Point del negocio (el cliente pasa la tarjeta ahí). La
+confirmación llega por webhook.
+
+```json
+// request (QR / link — default)
 {
   "monto": 45000,
   "descripcion": "Orden #1234 — saldo",
@@ -127,14 +155,36 @@ negocio. La confirmación llega por webhook.
   "facturar": true                          // al aprobarse el pago, factura y emite
 }
 // response
-{ "cobro_id":"uuid", "estado":"pendiente",
+{ "cobro_id":"uuid", "estado":"pendiente", "metodo":"qr",
   "init_point":"https://www.mercadopago.com/checkout/...", "preference_id":"..." }
 ```
-Mostrá `init_point` como link o QR. Si el negocio no tiene MP conectado en
-facturá., responde `409`.
+
+```json
+// request (terminal Point)
+{
+  "monto": 45000,
+  "descripcion": "Orden #1234 — saldo",
+  "external_reference": "sm-venta-1234",
+  "metodo": "point",
+  "terminal_id": "NEWLAND_N950__N950NCB801293324"  // de GET /api/partners/terminales
+}
+// response
+{ "cobro_id":"uuid", "estado":"pendiente", "metodo":"point", "order_id":"..." }
+```
+Con `metodo:"point"` no hay `init_point`: el cobro se dispara directo en la
+terminal del taller. facturá. **pone la terminal en modo PDV automáticamente**
+antes de mandar la orden, así que no hace falta configurar nada en Mercado
+Pago (tené en cuenta que eso saca a la terminal del modo STANDALONE / cobro
+manual mientras esté integrada). Si el negocio no tiene MP conectado en
+facturá., o no manda `terminal_id`, responde `409`/`400` respectivamente.
+
+> **Nota:** esta integración con Point no se pudo probar de punta a punta
+> contra una terminal física real antes de este release — validá el flujo
+> completo con un dispositivo real antes de confiar en él en producción.
 
 ### `GET /api/partners/cobros/{id}`  · scope `cobros`
-Polling del estado del cobro + factura asociada (si ya se emitió).
+Polling del estado del cobro + factura asociada (si ya se emitió). Incluye
+`metodo`, y si es Point también `mp_order_id`/`terminal_id`.
 
 ## Webhook saliente (facturá. → tu app)
 
@@ -154,7 +204,10 @@ header `x-factura-signature`. Verificá la firma antes de confiar en el cuerpo.
 }
 ```
 El webhook es best-effort: si tu endpoint falla, reconciliá con
-`GET /api/partners/cobros/{id}`.
+`GET /api/partners/cobros/{id}`. Para cobros con `metodo:"point"`, tratá el
+webhook de forma idempotente por `cobro_id` + `estado`: Mercado Pago puede
+notificar la orden y el pago subyacente por separado, así que en teoría
+podrías recibir el mismo evento más de una vez.
 
 ## Seguridad
 

@@ -6,6 +6,7 @@ import {
   canjearCodigo,
   rotarRefreshToken,
 } from "@/lib/partnerAuth";
+import { consumirRateLimit, ipDeRequest } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -34,7 +35,25 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createSupabaseAdminClient();
-  const app = await appPorClientId(admin, body.client_id ?? "");
+
+  // Rate limit anti brute-force del client_secret / abuso del endpoint:
+  // por client_id y por IP. Se hace antes de verificar el secreto.
+  const ip = ipDeRequest(request);
+  const clientId = body.client_id ?? "anon";
+  for (const [clave, limite] of [
+    [`token:client:${clientId}`, 30],
+    [`token:ip:${ip}`, 60],
+  ] as const) {
+    const rl = await consumirRateLimit(admin, clave, limite, 60);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: "rate_limited" },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSeg ?? 60) } }
+      );
+    }
+  }
+
+  const app = await appPorClientId(admin, clientId);
   if (!app) return err("invalid_client", 401);
   if (!body.client_secret || !verificarClientSecret(app, body.client_secret)) {
     return err("invalid_client", 401);
@@ -63,6 +82,9 @@ export async function POST(request: NextRequest) {
 
     return err("unsupported_grant_type");
   } catch (e) {
-    return err(e instanceof Error ? e.message : "invalid_grant", 400);
+    // No filtrar detalles internos (errores de Postgres, etc.) al cliente:
+    // se loguean server-side y se devuelve el código OAuth estándar.
+    console.error("Error en /api/oauth/token:", e);
+    return err("invalid_grant", 400);
   }
 }

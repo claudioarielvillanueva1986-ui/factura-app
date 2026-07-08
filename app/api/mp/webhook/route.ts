@@ -34,9 +34,20 @@ export async function POST(request: NextRequest) {
 
   const mpUserId = payload.user_id != null ? String(payload.user_id) : null;
 
+  // La firma es una capa informativa: si no valida, se registra pero se
+  // PROCESA igual. La protección real es que procesarEventoMP re-consulta el
+  // pago contra la API de MP con el token del propio negocio antes de
+  // facturar, así que un webhook falso no puede inventar un pago aprobado.
+  // (Descartar por firma hacía que un MP_WEBHOOK_SECRET mal configurado
+  // tirara silenciosamente cobros reales.)
   if (!verificarFirmaMP(request, paymentId != null ? String(paymentId) : null)) {
-    console.warn("Webhook MP: firma inválida, se descarta la notificación.");
-    return NextResponse.json({ ok: true });
+    console.warn("Webhook MP: firma inválida; se procesa igual (se revalida contra la API de MP).");
+    await admin.from("mp_webhook_logs").insert({
+      negocio_id: null,
+      payload: { tipo, paymentId, mpUserId, ...payload },
+      resultado: "aviso: firma inválida (se procesa igual)",
+      error: "x-signature no coincide o MP_WEBHOOK_SECRET ausente/incorrecto — revisar la firma secreta del webhook de la app de MP",
+    });
   }
 
   await procesarEventoMP(admin, {

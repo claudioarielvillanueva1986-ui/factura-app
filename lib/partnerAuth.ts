@@ -223,12 +223,18 @@ export async function autenticarPartner(
 
   const { data: grant } = await admin
     .from("partner_grants")
-    .select("id, app_id, negocio_id, scopes, expira_en, revocado")
+    .select("id, app_id, negocio_id, scopes, expira_en, revocado, partner_apps(activo)")
     .eq("access_token_hash", sha256Hex(m[1].trim()))
     .maybeSingle();
 
   if (!grant || grant.revocado) {
     return { ok: false, status: 401, error: "Token inválido o revocado" };
+  }
+  // Si la app fue desactivada, sus tokens ya emitidos dejan de valer al
+  // instante (no esperan a la expiración del access_token).
+  const app = grant.partner_apps as unknown as { activo?: boolean } | null;
+  if (!app?.activo) {
+    return { ok: false, status: 401, error: "La aplicación fue desactivada" };
   }
   if (grant.expira_en && new Date(grant.expira_en).getTime() < Date.now()) {
     return { ok: false, status: 401, error: "Token expirado" };

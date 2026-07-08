@@ -3,10 +3,9 @@ import type { ButtonHTMLAttributes } from "react";
 type Variant = "brand" | "ghost" | "whatsapp" | "danger";
 
 const VARIANTES: Record<Variant, string> = {
-  brand:
-    "bg-brand hover:bg-brand-hover text-white disabled:opacity-50 disabled:cursor-not-allowed",
-  ghost:
-    "bg-white/5 hover:bg-white/10 text-text-secondary border border-line",
+  // El degradé + brillo viven en .btn-sheen (globals.css)
+  brand: "btn-sheen text-white disabled:opacity-50 disabled:cursor-not-allowed",
+  ghost: "bg-white/5 hover:bg-white/10 text-text-secondary border border-line",
   whatsapp: "bg-whatsapp hover:brightness-110 text-[#052e16] font-semibold",
   danger: "bg-status-error/15 hover:bg-status-error/25 text-status-error",
 };

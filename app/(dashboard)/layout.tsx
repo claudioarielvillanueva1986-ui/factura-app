@@ -39,8 +39,11 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen">
+      {/* Fondo ambiente detrás de todo */}
+      <div className="bg-ambient" aria-hidden />
+
       {/* ---------- Sidebar (desktop) ---------- */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[200px] flex-col border-r border-line bg-surface md:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[200px] flex-col border-r border-line bg-surface/70 backdrop-blur-xl md:flex">
         <div className="px-5 pb-4 pt-6">
           <Logo size="text-xl" />
           <p className="mt-1 truncate text-[11px] text-text-muted">
@@ -48,20 +51,27 @@ export default function DashboardLayout({
           </p>
         </div>
 
-        <nav className="flex-1 space-y-0.5 py-2">
+        <nav className="flex-1 space-y-1 px-2 py-2">
           {NAV.map(({ href, label, icon: Icon }) => {
             const activo = esActivo(href);
             return (
               <Link
                 key={href}
                 href={href}
-                className={`flex items-center gap-2.5 px-5 py-2 text-[13px] transition-colors ${
+                className={`relative flex items-center gap-2.5 rounded-btn px-3 py-2 text-[13px] transition-all duration-200 ${
                   activo
-                    ? "border-r-2 border-brand bg-brand-dim font-medium text-text-primary"
+                    ? "bg-gradient-to-r from-brand-dim to-transparent font-medium text-text-primary shadow-glow-sm"
                     : "text-text-secondary hover:bg-white/5 hover:text-text-primary"
                 }`}
               >
-                <Icon size={16} strokeWidth={activo ? 2.2 : 1.8} />
+                {activo && (
+                  <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-gradient-to-b from-brand-hover to-accent" />
+                )}
+                <Icon
+                  size={16}
+                  strokeWidth={activo ? 2.2 : 1.8}
+                  className={activo ? "text-brand-hover" : ""}
+                />
                 {label}
               </Link>
             );
@@ -138,16 +148,24 @@ export default function DashboardLayout({
               }`}
             >
               <span
-                className={`absolute top-0 h-0.5 w-8 rounded-full bg-brand transition-opacity duration-200 ${
+                className={`absolute top-0 h-0.5 w-8 rounded-full bg-gradient-to-r from-brand to-accent transition-opacity duration-200 ${
                   activo ? "opacity-100" : "opacity-0"
                 }`}
               />
-              <span
-                className={`transition-transform duration-200 ${
-                  activo ? "-translate-y-px scale-110" : ""
-                }`}
-              >
-                <Icon size={20} strokeWidth={activo ? 2.2 : 1.7} />
+              <span className="relative">
+                {/* halo detrás del ícono activo */}
+                <span
+                  className={`absolute -inset-2 rounded-full bg-brand/25 blur-md transition-opacity duration-300 ${
+                    activo ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+                <span
+                  className={`relative block transition-transform duration-200 ${
+                    activo ? "-translate-y-px scale-110" : ""
+                  }`}
+                >
+                  <Icon size={20} strokeWidth={activo ? 2.2 : 1.7} />
+                </span>
               </span>
               {corto}
             </Link>

@@ -158,6 +158,115 @@ input:-webkit-autofill {
   animation: shimmer 1.6s linear infinite;
 }
 
+/* ============ Profundidad y polish premium ============ */
+
+/* Fondo ambiente: halos de marca/acento muy sutiles detrás de todo, con una
+   deriva lenta para que el fondo "respire" sin distraer. */
+.bg-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55rem 38rem at 12% -12%, rgba(124, 58, 237, 0.16), transparent 60%),
+    radial-gradient(48rem 36rem at 105% -5%, rgba(20, 184, 166, 0.11), transparent 55%),
+    radial-gradient(42rem 32rem at 50% 118%, rgba(124, 58, 237, 0.09), transparent 60%);
+  animation: ambient-drift 18s ease-in-out infinite;
+}
+
+@keyframes ambient-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -1.5%, 0);
+  }
+}
+
+/* Borde-gradiente hairline: da la sensación de superficie iluminada desde
+   arriba (se usa como ::before para no pisar el contenido). */
+.surface-ring {
+  position: relative;
+}
+.surface-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Card de vidrio: fondo translúcido + blur para cards destacadas. */
+.card-glass {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* Elevación al pasar el mouse (springy). */
+.hover-lift {
+  transition:
+    transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.28s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 36px -18px rgba(124, 58, 237, 0.45);
+  border-color: rgba(124, 58, 237, 0.28);
+}
+
+/* Chip de ícono con degradé marca→acento. */
+.icon-chip {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.24), rgba(20, 184, 166, 0.16));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Botón brand: degradé + brillo que barre al pasar el mouse. */
+.btn-sheen {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  box-shadow: 0 8px 24px -12px rgba(124, 58, 237, 0.7);
+}
+.btn-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.28) 50%, transparent 70%);
+  transform: translateX(-130%);
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-sheen:hover::after {
+  transform: translateX(130%);
+}
+.btn-sheen:hover {
+  box-shadow: 0 10px 30px -10px rgba(124, 58, 237, 0.85);
+}
+
+/* Entrada escalonada de tarjetas/listas. */
+@keyframes fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-up {
+  animation: fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* Accesibilidad: respetar la preferencia de menos movimiento */
 @media (prefers-reduced-motion: reduce) {
   *,
