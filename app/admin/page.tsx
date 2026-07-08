@@ -8,6 +8,8 @@ import {
   Ban,
   ChevronDown,
   ChevronUp,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Card } from "@/components/ui/Card";
@@ -34,6 +36,14 @@ interface NegocioAdmin {
   usuarios_count: number;
   facturas_count: number;
   ultimo_pago: { monto: number; estado: string; fecha: string } | null;
+  // salud de facturación
+  arca_ok: boolean;
+  mp_conectado: boolean;
+  facturas_emitidas: number;
+  facturas_error: number;
+  facturas_borrador: number;
+  ultima_emision: string | null;
+  ultimo_error: string | null;
 }
 
 const ESTADOS: { id: EstadoCuenta | "todos"; label: string }[] = [
@@ -57,6 +67,7 @@ export default function AdminPage() {
   const [negocios, setNegocios] = useState<NegocioAdmin[]>([]);
   const [cargando, setCargando] = useState(true);
   const [filtro, setFiltro] = useState<EstadoCuenta | "todos">("todos");
+  const [soloErrores, setSoloErrores] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [expandido, setExpandido] = useState<string | null>(null);
 
@@ -73,6 +84,7 @@ export default function AdminPage() {
   const visibles = useMemo(() => {
     let lista = negocios;
     if (filtro !== "todos") lista = lista.filter((n) => n.estado_cuenta === filtro);
+    if (soloErrores) lista = lista.filter((n) => n.facturas_error > 0);
     const q = busqueda.trim().toLowerCase();
     if (q) {
       lista = lista.filter(
@@ -83,14 +95,14 @@ export default function AdminPage() {
       );
     }
     return lista;
-  }, [negocios, filtro, busqueda]);
+  }, [negocios, filtro, soloErrores, busqueda]);
 
   const stats = useMemo(
     () => ({
       total: negocios.length,
       activos: negocios.filter((n) => n.estado_cuenta === "activo").length,
       trial: negocios.filter((n) => n.estado_cuenta === "trial").length,
-      suspendidos: negocios.filter((n) => n.estado_cuenta === "suspendido").length,
+      conErrores: negocios.filter((n) => n.facturas_error > 0).length,
     }),
     [negocios]
   );
@@ -121,12 +133,22 @@ export default function AdminPage() {
             {stats.trial}
           </p>
         </Card>
-        <Card glass hover className="p-4">
-          <p className="text-[11px] text-text-muted">Suspendidos</p>
-          <p className="mt-1 text-[20px] font-semibold tabular-nums text-status-error">
-            {stats.suspendidos}
-          </p>
-        </Card>
+        <button
+          type="button"
+          onClick={() => setSoloErrores((v) => !v)}
+          className="text-left"
+        >
+          <Card
+            glass
+            hover
+            className={`p-4 ${soloErrores ? "ring-1 ring-status-error/60" : ""}`}
+          >
+            <p className="text-[11px] text-text-muted">Con errores de facturación</p>
+            <p className="mt-1 text-[20px] font-semibold tabular-nums text-status-error">
+              {stats.conErrores}
+            </p>
+          </Card>
+        </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -169,10 +191,21 @@ export default function AdminPage() {
                   <p className="truncate text-[13px] font-medium">{n.nombre}</p>
                   <p className="truncate text-[11px] text-text-muted">
                     {n.cuit ?? "sin CUIT"} · {n.usuarios_count} usuario
-                    {n.usuarios_count === 1 ? "" : "s"} · {n.facturas_count} factura
-                    {n.facturas_count === 1 ? "" : "s"}
+                    {n.usuarios_count === 1 ? "" : "s"} · {n.facturas_emitidas} emitida
+                    {n.facturas_emitidas === 1 ? "" : "s"}
                   </p>
                 </div>
+                {n.facturas_error > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-status-error/15 px-2.5 py-0.5 text-[11px] font-medium text-status-error">
+                    <AlertTriangle size={11} />
+                    {n.facturas_error} con error
+                  </span>
+                )}
+                {!n.arca_ok && (
+                  <span className="rounded-full bg-status-warn/15 px-2.5 py-0.5 text-[10px] text-status-warn">
+                    ARCA sin verificar
+                  </span>
+                )}
                 {n.precio_mensual != null && (
                   <span className="text-[12px] tabular-nums text-text-secondary">
                     {formatoPesos(n.precio_mensual)}
@@ -206,6 +239,29 @@ export default function AdminPage() {
           )}
         </div>
       </Card>
+    </div>
+  );
+}
+
+function SaludTile({
+  label,
+  valor,
+  tono,
+}: {
+  label: string;
+  valor: number;
+  tono: "ok" | "error" | "muted";
+}) {
+  const color =
+    tono === "ok"
+      ? "text-status-ok"
+      : tono === "error"
+        ? "text-status-error"
+        : "text-text-secondary";
+  return (
+    <div className="rounded-btn bg-white/5 px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wide text-text-muted">{label}</p>
+      <p className={`mt-0.5 text-[16px] font-semibold tabular-nums ${color}`}>{valor}</p>
     </div>
   );
 }
@@ -299,6 +355,42 @@ function DetalleNegocio({
 
   return (
     <div className="space-y-4 border-t border-line bg-black/10 px-4 py-4 sm:px-5">
+      {/* Salud de facturación: ¿está facturando bien? ¿tiene errores? */}
+      <div className="rounded-btn border border-line bg-white/[0.02] p-3">
+        <p className="mb-2 flex items-center gap-1.5 text-[12px] font-medium text-text-secondary">
+          <FileText size={13} />
+          Estado de la facturación
+        </p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <SaludTile label="Emitidas" valor={negocio.facturas_emitidas} tono="ok" />
+          <SaludTile label="Con error" valor={negocio.facturas_error} tono={negocio.facturas_error > 0 ? "error" : "muted"} />
+          <SaludTile label="Borradores" valor={negocio.facturas_borrador} tono="muted" />
+          <div className="rounded-btn bg-white/5 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wide text-text-muted">Conexiones</p>
+            <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
+              <span className={negocio.arca_ok ? "text-status-ok" : "text-status-warn"}>
+                {negocio.arca_ok ? "ARCA ✓" : "ARCA ✗"}
+              </span>
+              <span className={negocio.mp_conectado ? "text-status-ok" : "text-text-muted"}>
+                {negocio.mp_conectado ? "MP ✓" : "MP ✗"}
+              </span>
+            </div>
+          </div>
+        </div>
+        {negocio.ultima_emision && (
+          <p className="mt-2 flex items-center gap-1.5 text-[11px] text-text-muted">
+            <CheckCircle2 size={12} className="text-status-ok" />
+            Última emisión: {new Date(negocio.ultima_emision).toLocaleString("es-AR")}
+          </p>
+        )}
+        {negocio.facturas_error > 0 && negocio.ultimo_error && (
+          <p className="mt-2 flex items-start gap-1.5 rounded-btn bg-status-error/10 px-2.5 py-2 text-[11px] text-status-error">
+            <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+            <span>Último error: {negocio.ultimo_error}</span>
+          </p>
+        )}
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <label className="text-[12px] font-medium text-text-secondary">
