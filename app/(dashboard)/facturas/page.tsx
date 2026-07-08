@@ -80,11 +80,11 @@ export default function FacturasPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <header className="flex items-center justify-between">
+      <header className="flex animate-fade-up items-center justify-between">
         <h1 className="text-[15px] font-semibold">Facturas</h1>
         <Link
           href="/facturas/nueva"
-          className="inline-flex items-center gap-1.5 rounded-btn bg-brand px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-brand-hover"
+          className="btn-sheen inline-flex items-center gap-1.5 rounded-btn px-4 py-2 text-[13px] font-medium text-white transition-all active:scale-[0.97]"
         >
           <Plus size={15} />
           Nueva factura
@@ -92,7 +92,10 @@ export default function FacturasPage() {
       </header>
 
       {/* Filtros pill + buscador */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div
+        className="flex animate-fade-up flex-wrap items-center gap-2"
+        style={{ animationDelay: "60ms" }}
+      >
         {FILTROS.map(({ id, label }) => (
           <button
             key={id}
@@ -120,7 +123,7 @@ export default function FacturasPage() {
         </div>
       </div>
 
-      <Card className="p-0">
+      <Card glass className="animate-fade-up p-0" style={{ animationDelay: "120ms" }}>
         <div className="divide-y divide-line">
           {visibles.map((f) => {
             const nombre = f.clientes?.nombre ?? "Consumidor Final";
@@ -129,7 +132,7 @@ export default function FacturasPage() {
             return (
               <div
                 key={f.id}
-                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-5"
+                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 transition-colors hover:bg-white/[0.03] sm:px-5"
               >
                 <Avatar nombre={nombre} auto={f.origen === "mercadopago"} />
                 <div className="min-w-0 flex-1 basis-36">

@@ -146,8 +146,10 @@ export default function NuevaFacturaPage() {
   if (exito) {
     return (
       <div className="mx-auto max-w-md pt-10">
-        <Card className="space-y-4 text-center">
-          <CheckCircle2 size={44} className="mx-auto text-status-ok" />
+        <Card glass className="animate-fade-up space-y-4 text-center">
+          <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-status-ok/15 shadow-glow">
+            <CheckCircle2 size={40} className="text-status-ok" />
+          </span>
           <div>
             <h1 className="text-[16px] font-semibold">¡Factura emitida!</h1>
             <p className="mt-1 text-[13px] text-text-secondary">
@@ -204,17 +206,17 @@ export default function NuevaFacturaPage() {
   // ---------- Formulario ----------
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      <header className="flex items-center gap-3">
+      <header className="flex animate-fade-up items-center gap-3">
         <Link
           href="/facturas"
-          className="rounded-btn border border-line bg-surface p-2 text-text-secondary hover:text-text-primary"
+          className="rounded-btn border border-line bg-surface p-2 text-text-secondary transition-colors hover:text-text-primary"
         >
           <ArrowLeft size={15} />
         </Link>
         <h1 className="text-[15px] font-semibold">Nueva factura</h1>
       </header>
 
-      <Card className="space-y-5">
+      <Card glass className="animate-fade-up space-y-5" style={{ animationDelay: "60ms" }}>
         {/* Tipo */}
         <div>
           <p className="mb-2 text-[12px] font-medium text-text-secondary">

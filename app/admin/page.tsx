@@ -105,23 +105,23 @@ export default function AdminPage() {
       </header>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Card className="p-4">
+        <Card glass hover className="p-4">
           <p className="text-[11px] text-text-muted">Total</p>
           <p className="mt-1 text-[20px] font-semibold tabular-nums">{stats.total}</p>
         </Card>
-        <Card className="p-4">
+        <Card glass hover className="p-4">
           <p className="text-[11px] text-text-muted">Activos</p>
           <p className="mt-1 text-[20px] font-semibold tabular-nums text-status-ok">
             {stats.activos}
           </p>
         </Card>
-        <Card className="p-4">
+        <Card glass hover className="p-4">
           <p className="text-[11px] text-text-muted">En trial</p>
           <p className="mt-1 text-[20px] font-semibold tabular-nums text-brand-hover">
             {stats.trial}
           </p>
         </Card>
-        <Card className="p-4">
+        <Card glass hover className="p-4">
           <p className="text-[11px] text-text-muted">Suspendidos</p>
           <p className="mt-1 text-[20px] font-semibold tabular-nums text-status-error">
             {stats.suspendidos}
@@ -157,7 +157,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <Card className="p-0">
+      <Card glass className="p-0">
         <div className="divide-y divide-line">
           {visibles.map((n) => (
             <div key={n.id}>

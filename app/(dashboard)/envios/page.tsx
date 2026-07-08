@@ -46,21 +46,21 @@ export default function EnviosPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <header>
+      <header className="animate-fade-up">
         <h1 className="text-[15px] font-semibold">Envíos WA</h1>
         <p className="mt-1 text-[12px] text-text-secondary">
           Comprobantes emitidos que todavía no enviaste por WhatsApp.
         </p>
       </header>
 
-      <Card className="p-0">
+      <Card glass className="animate-fade-up p-0" style={{ animationDelay: "80ms" }}>
         <div className="divide-y divide-line">
           {pendientes.map((f) => {
             const nombre = f.clientes?.nombre ?? "Consumidor Final";
             return (
               <div
                 key={f.id}
-                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-5"
+                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 transition-colors hover:bg-white/[0.03] sm:px-5"
               >
                 <Avatar nombre={nombre} auto={f.origen === "mercadopago"} />
                 <div className="min-w-0 flex-1 basis-36">

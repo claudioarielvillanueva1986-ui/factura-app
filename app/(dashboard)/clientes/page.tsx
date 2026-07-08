@@ -71,7 +71,7 @@ export default function ClientesPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <header className="flex items-center justify-between">
+      <header className="flex animate-fade-up items-center justify-between">
         <h1 className="text-[15px] font-semibold">Clientes</h1>
         <Button onClick={() => setModalAbierto(true)}>
           <Plus size={15} />
@@ -79,7 +79,7 @@ export default function ClientesPage() {
         </Button>
       </header>
 
-      <div className="relative max-w-xs">
+      <div className="relative max-w-xs animate-fade-up" style={{ animationDelay: "60ms" }}>
         <Search
           size={14}
           className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
@@ -92,10 +92,10 @@ export default function ClientesPage() {
         />
       </div>
 
-      <Card className="p-0">
+      <Card glass className="animate-fade-up p-0" style={{ animationDelay: "120ms" }}>
         <div className="divide-y divide-line">
           {visibles.map((c) => (
-            <div key={c.id} className="flex items-center gap-3 px-5 py-3">
+            <div key={c.id} className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-white/[0.03]">
               <Avatar nombre={c.nombre} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-medium">{c.nombre}</p>
