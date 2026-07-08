@@ -1,8 +1,12 @@
 import https from "node:https";
+import { promises as fs } from "node:fs";
+import { join } from "node:path";
 import axios from "axios";
 import * as soap from "soap";
 import { Afip } from "afip.ts";
 import { createSupabaseAdminClient } from "@/lib/supabase-server";
+
+type AdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
 // Los servidores WSAA/WSFE de ARCA todavía negocian TLS con parámetros
 // Diffie-Hellman de menos de 2048 bits (legacy). OpenSSL 3 —el que usa el
@@ -160,6 +164,69 @@ async function credencialesParaNegocio(
   return { keyPem, certPem };
 }
 
+// ---------- Cache compartido del TA de WSAA (ver migración 017) ----------
+// afip.ts guarda el TA en /tmp/TA-{cuit}-wsfe[-production].json. En serverless
+// ese archivo no persiste entre invocaciones, así que cada emisión pide un TA
+// nuevo y ARCA rechaza con "ya posee un TA valido". Guardamos un único TA en
+// la base (es del certificado, sirve para cualquier CUIT) y lo escribimos en
+// /tmp antes de emitir para que afip.ts lo reuse.
+function cuitNumerico(cuit: string) {
+  return String(Number(String(cuit).replace(/[^\d]/g, "")));
+}
+function rutaTA(cuit: string) {
+  const prod = process.env.AFIP_MODE === "production";
+  return join("/tmp", `TA-${cuitNumerico(cuit)}-wsfe${prod ? "-production" : ""}.json`);
+}
+
+// Escribe en /tmp el TA cacheado en la base (si sigue vigente) para que
+// afip.ts lo reuse en vez de pedir uno nuevo a WSAA.
+async function precargarTA(admin: AdminClient, cuit: string) {
+  const prod = process.env.AFIP_MODE === "production";
+  const { data } = await admin
+    .from("arca_ta_cache")
+    .select("ta_json, expira_en")
+    .eq("produccion", prod)
+    .maybeSingle();
+  if (!data?.ta_json || !data.expira_en) return;
+  // Solo si le quedan más de 10 min de vida (margen de seguridad).
+  if (new Date(data.expira_en).getTime() - Date.now() < 10 * 60 * 1000) return;
+  try {
+    await fs.writeFile(rutaTA(cuit), JSON.stringify(data.ta_json), "utf8");
+  } catch {
+    /* best-effort: si no se puede escribir, afip.ts pedirá uno nuevo */
+  }
+}
+
+// Después de emitir, si afip.ts obtuvo un TA nuevo, lo guarda en la base para
+// compartirlo con las próximas emisiones (de cualquier negocio/instancia).
+async function persistirTA(admin: AdminClient, cuit: string) {
+  const prod = process.env.AFIP_MODE === "production";
+  let raw: string;
+  try {
+    raw = await fs.readFile(rutaTA(cuit), "utf8");
+  } catch {
+    return;
+  }
+  let ta: { header?: Array<{ expirationtime?: string }> };
+  try {
+    ta = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  const expStr = ta?.header?.[1]?.expirationtime;
+  const expira = expStr ? new Date(expStr) : null;
+  if (!expira || Number.isNaN(expira.getTime())) return;
+  await admin.from("arca_ta_cache").upsert(
+    {
+      produccion: prod,
+      ta_json: ta,
+      expira_en: expira.toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "produccion" }
+  );
+}
+
 function clienteAfip(keyPem: string, certPem: string, cuit: string) {
   permitirTlsLegacyDeArca();
   return new Afip({
@@ -207,6 +274,7 @@ export async function probarConexionARCA(negocioId: string): Promise<ResultadoPr
 
   try {
     const afip = clienteAfip(cred.keyPem, cred.certPem, cuit);
+    await precargarTA(admin, cuit);
     const puntoVenta = negocio.punto_venta ?? 1;
     const tipoPrueba =
       negocio.condicion_iva === "monotributo"
@@ -219,6 +287,7 @@ export async function probarConexionARCA(negocioId: string): Promise<ResultadoPr
       puntoVenta,
       tipoPrueba
     );
+    await persistirTA(admin, cuit);
 
     await admin
       .from("negocios")
@@ -290,6 +359,8 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
 
   try {
     const afip = clienteAfip(cred.keyPem, cred.certPem, negocio.cuit);
+    // Reusar el TA cacheado (evita "ya posee un TA valido" en serverless).
+    await precargarTA(admin, negocio.cuit);
 
     const cbteTipo = CODIGO_COMPROBANTE[factura.tipo];
     const { docTipo, docNro } = docTipoYNro(factura.clientes?.cuit_dni);
@@ -302,6 +373,8 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
     // emitieron comprobantes por fuera de la app)
     const puntoVenta = negocio.punto_venta ?? 1;
     const ultimo = await afip.electronicBillingService.getLastVoucher(puntoVenta, cbteTipo);
+    // Recién ahora afip.ts hizo el login WSAA: guardamos el TA para compartirlo.
+    await persistirTA(admin, negocio.cuit);
     const numeroAfip = Number(ultimo.CbteNro) + 1;
 
     const resultado = await afip.electronicBillingService.createVoucher({

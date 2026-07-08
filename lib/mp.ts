@@ -317,10 +317,11 @@ export async function procesarEventoMP(admin: SupabaseClient, evento: EventoMP) 
       return;
     }
 
-    // Idempotencia: si ya existe factura para este pago, reutilizarla
+    // Idempotencia: si ya existe factura para este pago, reutilizarla. Si
+    // quedó en 'error' (p.ej. falló ARCA), se reintenta la emisión ahora.
     const { data: existente } = await admin
       .from("facturas")
-      .select("id")
+      .select("id, estado")
       .eq("negocio_id", negocioId)
       .eq("mp_payment_id", String(evento.paymentId))
       .maybeSingle();
@@ -329,6 +330,15 @@ export async function procesarEventoMP(admin: SupabaseClient, evento: EventoMP) 
     let emisionMsg = "";
     if (existente) {
       facturaId = existente.id as string;
+      if (existente.estado === "error" || existente.estado === "borrador") {
+        const emision = await emitirFacturaARCA(facturaId);
+        await log(
+          emision.ok
+            ? `reintento OK: pago ${evento.paymentId} → factura ${facturaId} CAE ${emision.cae}`
+            : `reintento falló: factura ${facturaId} sigue sin emitir`,
+          emision.ok ? undefined : emision.error
+        );
+      }
     } else {
       const telefono = pago.payer?.phone?.number
         ? `${pago.payer.phone.area_code ?? ""}${pago.payer.phone.number}`
