@@ -14,7 +14,9 @@ const PAGE = 50;
 // Tope de emisiones por corrida: ARCA es lento (WSAA+WSFE) y la función tiene
 // ~26 s. Con corridas frecuentes + idempotencia, un backlog se drena en varias
 // corridas sin perder nada (los ya facturados se filtran).
-const MAX_POR_CORRIDA = 3;
+// Con el TA de WSAA cacheado y compartido (lib/arca.ts), varias emisiones
+// seguidas reusan un mismo login, así que se puede subir el tope por corrida.
+const MAX_POR_CORRIDA = 8;
 
 interface PagoBusqueda {
   id: number;
