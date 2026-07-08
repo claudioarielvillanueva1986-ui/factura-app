@@ -38,11 +38,14 @@ interface NegocioAdmin {
   ultimo_pago: { monto: number; estado: string; fecha: string } | null;
   // salud de facturación
   arca_ok: boolean;
+  arca_verificado_en: string | null;
+  punto_venta: number | null;
   mp_conectado: boolean;
   facturas_emitidas: number;
   facturas_error: number;
   facturas_borrador: number;
   ultima_emision: string | null;
+  primer_error_en: string | null;
   ultimo_error: string | null;
 }
 
@@ -62,6 +65,42 @@ const ESTADO_BADGE: Record<EstadoCuenta, string> = {
   suspendido: "bg-status-error/15 text-status-error",
   cancelado: "bg-white/10 text-text-secondary",
 };
+
+function tiempoRelativo(iso: string | null): string {
+  if (!iso) return "—";
+  const ms = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `hace ${h} h`;
+  const d = Math.floor(h / 24);
+  return `hace ${d} día${d === 1 ? "" : "s"}`;
+}
+
+// Estimación de la ventana de propagación de ARCA: la delegación puede tardar
+// hasta 24 hs desde que se verificó en habilitar la emisión.
+function estimacionArca(
+  verificadoEn: string | null
+): { texto: string; vencido: boolean } | null {
+  if (!verificadoEn) return null;
+  const transcurridoH = (Date.now() - new Date(verificadoEn).getTime()) / 3_600_000;
+  const restanteH = 24 - transcurridoH;
+  if (restanteH <= 0) {
+    return {
+      texto:
+        "Ya pasaron más de 24 hs desde la verificación. Si sigue con errores, " +
+        "la delegación probablemente quedó sobre el servicio equivocado (tiene que ser " +
+        "'Facturación Electrónica' dentro de WebServices) y hay que rehacerla.",
+      vencido: true,
+    };
+  }
+  const h = Math.floor(restanteH);
+  const m = Math.round((restanteH - h) * 60);
+  return {
+    texto: `ARCA puede tardar hasta 24 hs en habilitar la emisión. Estimado: faltan ~${h} h ${m} min.`,
+    vencido: false,
+  };
+}
 
 export default function AdminPage() {
   const [negocios, setNegocios] = useState<NegocioAdmin[]>([]);
@@ -377,6 +416,45 @@ function DetalleNegocio({
             </div>
           </div>
         </div>
+
+        {/* Delegación / verificación de ARCA + estimación de propagación */}
+        <div className="mt-2 space-y-1 text-[11px]">
+          <p className="text-text-muted">
+            Conexión ARCA verificada:{" "}
+            {negocio.arca_verificado_en ? (
+              <span className="text-text-secondary">
+                {new Date(negocio.arca_verificado_en).toLocaleString("es-AR")} ·{" "}
+                {tiempoRelativo(negocio.arca_verificado_en)}
+              </span>
+            ) : (
+              <span className="text-status-warn">todavía no verificó la conexión</span>
+            )}
+            {negocio.punto_venta ? ` · Pto vta ${negocio.punto_venta}` : ""}
+          </p>
+          {negocio.facturas_error > 0 &&
+            (() => {
+              const est = estimacionArca(negocio.arca_verificado_en);
+              if (!est) return null;
+              return (
+                <p
+                  className={`rounded-btn px-2.5 py-1.5 ${
+                    est.vencido
+                      ? "bg-status-error/10 text-status-error"
+                      : "bg-brand-dim text-brand-hover"
+                  }`}
+                >
+                  ⏳ {est.texto}
+                </p>
+              );
+            })()}
+          {negocio.primer_error_en && (
+            <p className="text-text-muted">
+              Con errores desde: {new Date(negocio.primer_error_en).toLocaleString("es-AR")} (
+              {tiempoRelativo(negocio.primer_error_en)})
+            </p>
+          )}
+        </div>
+
         {negocio.ultima_emision && (
           <p className="mt-2 flex items-center gap-1.5 text-[11px] text-text-muted">
             <CheckCircle2 size={12} className="text-status-ok" />
