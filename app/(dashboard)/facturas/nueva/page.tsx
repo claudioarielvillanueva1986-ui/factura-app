@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, CheckCircle2, MessageCircle, FileDown } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, CheckCircle2, MessageCircle, FileDown, Clock } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/useAuth";
 import { enviarPorWhatsApp } from "@/lib/whatsapp";
@@ -33,6 +33,7 @@ export default function NuevaFacturaPage() {
   const [items, setItems] = useState<ItemForm[]>([{ ...ITEM_VACIO }]);
   const [emitiendo, setEmitiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendiente, setPendiente] = useState<string | null>(null);
   const [exito, setExito] = useState<{
     factura: Factura;
     cae: string;
@@ -128,6 +129,16 @@ export default function NuevaFacturaPage() {
         throw new Error(emision.error ?? "Falló la emisión en ARCA");
       }
 
+      // ARCA todavía propagando la delegación: la factura quedó guardada y se
+      // emite sola. Mostramos un aviso amable, no la pantalla de CAE.
+      if (emision.pendiente) {
+        setPendiente(
+          emision.mensaje ??
+            "La factura quedó guardada y se emite sola en cuanto se habilite ARCA."
+        );
+        return;
+      }
+
       const clienteSel = clientes.find((c) => c.id === clienteId);
       setExito({
         factura: { ...facturaCreada, numero: emision.numero ?? facturaCreada.numero },
@@ -140,6 +151,29 @@ export default function NuevaFacturaPage() {
     } finally {
       setEmitiendo(false);
     }
+  }
+
+  // ---------- Pantalla de "pendiente por ARCA" ----------
+  if (pendiente) {
+    return (
+      <div className="mx-auto max-w-md pt-10">
+        <Card glass className="animate-fade-up space-y-4 text-center">
+          <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent/15 shadow-glow">
+            <Clock size={38} className="text-accent-light" />
+          </span>
+          <div>
+            <h1 className="text-[16px] font-semibold">Factura guardada</h1>
+            <p className="mt-2 text-[13px] text-text-secondary">{pendiente}</p>
+          </div>
+          <Link
+            href="/facturas"
+            className="block text-[12px] text-text-secondary hover:text-text-primary"
+          >
+            Volver a facturas
+          </Link>
+        </Card>
+      </div>
+    );
   }
 
   // ---------- Pantalla de éxito con CAE ----------

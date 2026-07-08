@@ -34,6 +34,16 @@ export async function POST(request: NextRequest) {
 
   const resultado = await emitirFacturaARCA(factura.id);
 
+  // Pendiente por propagación de ARCA: no es un error, la factura quedó
+  // guardada y se emite sola. Devolvemos 200 con la bandera para que el panel
+  // muestre un aviso amable en vez de un error rojo.
+  if (resultado.pendiente) {
+    return NextResponse.json(
+      { ok: false, pendiente: true, mensaje: resultado.error },
+      { status: 200 }
+    );
+  }
+
   if (!resultado.ok) {
     return NextResponse.json({ error: resultado.error }, { status: 422 });
   }

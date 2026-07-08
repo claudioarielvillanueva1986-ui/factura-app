@@ -125,6 +125,9 @@ export interface ResultadoEmision {
   cae_vencimiento?: string | null;
   numero?: number;
   error?: string;
+  // La conexión con ARCA todavía está propagando (ventana de 24 hs): la
+  // factura quedó guardada como pendiente y se emite sola cuando se habilite.
+  pendiente?: boolean;
 }
 
 interface NegocioARCA {
@@ -133,6 +136,18 @@ interface NegocioARCA {
   punto_venta: number | null;
   condicion_iva: string;
   arca_modo?: string | null;
+  arca_verificado_en?: string | null;
+}
+
+// ARCA puede tardar hasta 24 hs, desde que se verifica la delegación, en
+// habilitar la EMISIÓN de comprobantes (la lectura funciona antes). Para no
+// generar errores durante esa ventana, no intentamos emitir hasta que pase:
+// la factura queda pendiente y se emite sola después (vía el cron de reintento).
+const VENTANA_PROPAGACION_ARCA_MS = 24 * 60 * 60 * 1000;
+
+function arcaEnPropagacion(verificadoEn: string | null | undefined): boolean {
+  if (!verificadoEn) return false; // sin verificación no gateamos: fallará con otro mensaje claro
+  return Date.now() - new Date(verificadoEn).getTime() < VENTANA_PROPAGACION_ARCA_MS;
 }
 
 // Resuelve las credenciales según el modo del negocio:
@@ -333,7 +348,7 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
   const { data: factura, error: errFactura } = await admin
     .from("facturas")
     .select(
-      "*, clientes(nombre, cuit_dni), negocios(id, cuit, punto_venta, condicion_iva, arca_modo)"
+      "*, clientes(nombre, cuit_dni), negocios(id, cuit, punto_venta, condicion_iva, arca_modo, arca_verificado_en)"
     )
     .eq("id", facturaId)
     .single();
@@ -377,6 +392,14 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
   const cred = await credencialesParaNegocio(admin, negocio);
   if (cred.error || !cred.keyPem || !cred.certPem) {
     return await marcarError(admin, facturaId, cred.error ?? "Credenciales incompletas");
+  }
+
+  // Portón anti-errores: si la delegación de ARCA todavía está propagando
+  // (ventana de 24 hs desde la verificación), NO intentamos emitir. Dejamos la
+  // factura pendiente (borrador con aviso, no error) y el cron la emite sola
+  // cuando pase la ventana.
+  if (arcaEnPropagacion(negocio.arca_verificado_en)) {
+    return await marcarPendienteArca(admin, facturaId, negocio.arca_verificado_en!);
   }
 
   try {
@@ -479,4 +502,24 @@ async function marcarError(
     .update({ estado: "error", error_mensaje: mensaje, emision_lock_at: null })
     .eq("id", facturaId);
   return { ok: false, error: mensaje };
+}
+
+// La factura no se pudo intentar todavía porque ARCA está propagando la
+// delegación. Queda en 'borrador' (no cuenta como error) con un aviso, y se
+// reintenta sola cuando pase la ventana de 24 hs.
+async function marcarPendienteArca(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  facturaId: string,
+  verificadoEn: string
+): Promise<ResultadoEmision> {
+  const listo = new Date(new Date(verificadoEn).getTime() + VENTANA_PROPAGACION_ARCA_MS);
+  const cuando = listo.toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const mensaje =
+    `Estamos activando tu conexión con ARCA (puede tardar hasta 24 hs desde que verificaste). ` +
+    `La factura queda guardada y se emite sola a partir del ${cuando} hs, sin que hagas nada.`;
+  await admin
+    .from("facturas")
+    .update({ estado: "borrador", error_mensaje: mensaje, emision_lock_at: null })
+    .eq("id", facturaId);
+  return { ok: false, pendiente: true, error: mensaje };
 }

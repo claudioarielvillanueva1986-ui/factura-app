@@ -10,6 +10,7 @@ import {
   ChevronUp,
   AlertTriangle,
   CheckCircle2,
+  Clock,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Card } from "@/components/ui/Card";
@@ -44,6 +45,7 @@ interface NegocioAdmin {
   facturas_emitidas: number;
   facturas_error: number;
   facturas_borrador: number;
+  facturas_pendiente_arca: number;
   ultima_emision: string | null;
   primer_error_en: string | null;
   ultimo_error: string | null;
@@ -240,6 +242,12 @@ export default function AdminPage() {
                     {n.facturas_error} con error
                   </span>
                 )}
+                {n.facturas_pendiente_arca > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-brand-dim px-2.5 py-0.5 text-[11px] font-medium text-brand-hover">
+                    <Clock size={11} />
+                    {n.facturas_pendiente_arca} esperando ARCA
+                  </span>
+                )}
                 {!n.arca_ok && (
                   <span className="rounded-full bg-status-warn/15 px-2.5 py-0.5 text-[10px] text-status-warn">
                     ARCA sin verificar
@@ -289,14 +297,16 @@ function SaludTile({
 }: {
   label: string;
   valor: number;
-  tono: "ok" | "error" | "muted";
+  tono: "ok" | "error" | "muted" | "pendiente";
 }) {
   const color =
     tono === "ok"
       ? "text-status-ok"
       : tono === "error"
         ? "text-status-error"
-        : "text-text-secondary";
+        : tono === "pendiente"
+          ? "text-brand-hover"
+          : "text-text-secondary";
   return (
     <div className="rounded-btn bg-white/5 px-3 py-2">
       <p className="text-[10px] uppercase tracking-wide text-text-muted">{label}</p>
@@ -403,7 +413,11 @@ function DetalleNegocio({
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <SaludTile label="Emitidas" valor={negocio.facturas_emitidas} tono="ok" />
           <SaludTile label="Con error" valor={negocio.facturas_error} tono={negocio.facturas_error > 0 ? "error" : "muted"} />
-          <SaludTile label="Borradores" valor={negocio.facturas_borrador} tono="muted" />
+          {negocio.facturas_pendiente_arca > 0 ? (
+            <SaludTile label="Esperando ARCA" valor={negocio.facturas_pendiente_arca} tono="pendiente" />
+          ) : (
+            <SaludTile label="Borradores" valor={negocio.facturas_borrador} tono="muted" />
+          )}
           <div className="rounded-btn bg-white/5 px-3 py-2">
             <p className="text-[10px] uppercase tracking-wide text-text-muted">Conexiones</p>
             <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
@@ -431,7 +445,7 @@ function DetalleNegocio({
             )}
             {negocio.punto_venta ? ` · Pto vta ${negocio.punto_venta}` : ""}
           </p>
-          {negocio.facturas_error > 0 &&
+          {(negocio.facturas_error > 0 || negocio.facturas_pendiente_arca > 0) &&
             (() => {
               const est = estimacionArca(negocio.arca_verificado_en);
               if (!est) return null;
