@@ -715,6 +715,9 @@ function TabMercadoPago() {
         )}
       </Card>
 
+      {/* Email automático del comprobante al cliente */}
+      <CardEmailAutomatico esAdmin={esAdmin} />
+
       {/* Modo manual (avanzado) */}
       <details className="rounded-card border border-line bg-surface px-5 py-4">
         <summary className="cursor-pointer text-[12px] text-text-secondary">
@@ -751,6 +754,61 @@ function TabMercadoPago() {
         </form>
       </details>
     </div>
+  );
+}
+
+// Toggle de envío automático del comprobante por email al cliente. Lee/escribe
+// directamente negocios.email_automatico (aplica a TODAS las facturas, no solo
+// a las de Mercado Pago).
+function CardEmailAutomatico({ esAdmin }: { esAdmin: boolean }) {
+  const { negocio } = useAuth();
+  const [activo, setActivo] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!negocio) return;
+    supabase
+      .from("negocios")
+      .select("email_automatico")
+      .eq("id", negocio.id)
+      .maybeSingle()
+      .then(({ data }) => setActivo(data?.email_automatico ?? true));
+  }, [negocio]);
+
+  async function toggle() {
+    if (!negocio || activo === null) return;
+    const nuevo = !activo;
+    setActivo(nuevo);
+    await supabase.from("negocios").update({ email_automatico: nuevo }).eq("id", negocio.id);
+  }
+
+  return (
+    <Card glass>
+      <label className="flex cursor-pointer items-center justify-between">
+        <div className="pr-3">
+          <p className="text-[13px] font-medium">Enviar el comprobante por email</p>
+          <p className="text-[11px] text-text-muted">
+            Al emitir, le mandamos el PDF al cliente automáticamente (si tiene email cargado),
+            con los datos de tu negocio.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={activo ?? false}
+          onClick={toggle}
+          disabled={!esAdmin || activo === null}
+          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            activo ? "bg-brand" : "bg-white/10"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+              activo ? "left-[22px]" : "left-0.5"
+            }`}
+          />
+        </button>
+      </label>
+    </Card>
   );
 }
 

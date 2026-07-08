@@ -446,6 +446,15 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
       })
       .eq("id", facturaId);
 
+    // Envío automático del comprobante por email (best-effort: nunca rompe la
+    // emisión ni la bloquea si el proveedor de email no está configurado).
+    try {
+      const { enviarComprobantePorEmail } = await import("@/lib/email");
+      await enviarComprobantePorEmail(facturaId);
+    } catch {
+      /* el email es secundario: la factura ya quedó emitida con CAE */
+    }
+
     return {
       ok: true,
       cae: resultado.cae,
