@@ -188,7 +188,7 @@ export async function procesarEventoMP(admin: SupabaseClient, evento: EventoMP) 
 
     const { data: config } = await admin
       .from("mercadopago_config")
-      .select("auto_facturar")
+      .select("auto_facturar, facturar_transferencias")
       .eq("negocio_id", negocioId)
       .maybeSingle();
 
@@ -213,6 +213,7 @@ export async function procesarEventoMP(admin: SupabaseClient, evento: EventoMP) 
       transaction_amount: number;
       description?: string;
       external_reference?: string;
+      operation_type?: string; // "regular_payment" | "money_transfer" | "account_fund" | ...
       payer?: { phone?: { area_code?: string; number?: string } };
     };
 
@@ -278,9 +279,19 @@ export async function procesarEventoMP(admin: SupabaseClient, evento: EventoMP) 
         .eq("id", cobro.id);
     }
 
-    // Facturar: forzado por el cobro (facturar=true) o por el auto_facturar
-    // del negocio para pagos MP sueltos.
-    const debeFacturar = cobro ? cobro.facturar : !!config?.auto_facturar;
+    // ¿Es una transferencia entrante (familiar, cuenta propia) y no una venta?
+    // MP lo indica en operation_type. Estas NO se facturan salvo que el negocio
+    // lo pida explícitamente (facturar_transferencias), aunque auto_facturar
+    // esté prendido. No aplica a cobros iniciados por la Partner API.
+    const esTransferencia =
+      pago.operation_type === "money_transfer" || pago.operation_type === "account_fund";
+
+    // Facturar: forzado por el cobro (facturar=true) o, para pagos MP sueltos,
+    // por auto_facturar — pero una transferencia entrante requiere además el
+    // toggle de transferencias.
+    const debeFacturar = cobro
+      ? cobro.facturar
+      : !!config?.auto_facturar && (!esTransferencia || !!config?.facturar_transferencias);
 
     if (!debeFacturar) {
       if (cobro) {
@@ -298,7 +309,11 @@ export async function procesarEventoMP(admin: SupabaseClient, evento: EventoMP) 
           .update({ notificado_en: new Date().toISOString() })
           .eq("id", cobro.id);
       }
-      await log("cobro aprobado sin facturación (auto_facturar off / facturar=false)");
+      const motivo =
+        !cobro && esTransferencia && config?.auto_facturar && !config?.facturar_transferencias
+          ? "transferencia entrante (facturar_transferencias off)"
+          : "auto_facturar off / facturar=false";
+      await log(`pago aprobado sin facturación: ${motivo}`);
       return;
     }
 
