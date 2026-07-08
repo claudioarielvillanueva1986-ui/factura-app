@@ -70,7 +70,14 @@ const ERRORES_ARCA: { patron: RegExp; mensaje: string }[] = [
       "(elegí 'RECE para aplicativo y web services').",
   },
   {
-    patron: /no autorizado|not authorized|computador|wsfe.*autoriz|delegaci|representa/i,
+    // Delegación faltante. El código 600 de WSFE llega como
+    // "ValidacionDeToken: No aparecio CUIT en lista de relaciones: <cuit>":
+    // el certificado autentica bien pero ese CUIT no delegó el WS a la
+    // plataforma (o la delegación todavía no impactó). Va ANTES del patrón
+    // de WSAA porque contiene la palabra "Token" y si no lo atajamos acá se
+    // confunde con un error de autenticación.
+    patron:
+      /lista de relaciones|no aparec\w* .*cuit|no autorizado|not authorized|computador|wsfe.*autoriz|delegaci|representa/i,
     mensaje:
       "Tu CUIT todavía no está autorizado para usar el web service de facturación (WSFE). " +
       "Entrá a ARCA → Administrador de Relaciones de Clave Fiscal → Nueva Relación → " +
@@ -78,7 +85,9 @@ const ERRORES_ARCA: { patron: RegExp; mensaje: string }[] = [
       "La delegación puede tardar hasta 24 hs en impactar.",
   },
   {
-    patron: /token|ta\.xml|login|wsaa/i,
+    // WSAA propiamente dicho (login/ticket de acceso). Evitamos el genérico
+    // "token" para no capturar el "ValidacionDeToken" de la delegación.
+    patron: /\bwsaa\b|ta\.xml|logincms|generando ticket|ticket de acceso|autenticaci/i,
     mensaje:
       "Error de autenticación con ARCA (WSAA). Suele resolverse reintentando en unos minutos. " +
       "Si persiste, revisá que el certificado esté asociado al servicio 'wsfe'.",
