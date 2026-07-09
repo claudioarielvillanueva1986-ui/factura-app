@@ -2,7 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, TrendingUp, CalendarDays, Zap, MessageCircle } from "lucide-react";
+import {
+  Plus,
+  TrendingUp,
+  CalendarDays,
+  Zap,
+  MessageCircle,
+  AlertTriangle,
+  Bell,
+  ArrowRight,
+} from "lucide-react";
+import { useAuth } from "@/lib/useAuth";
 import {
   BarChart,
   Bar,
@@ -77,6 +87,8 @@ export default function DashboardPage() {
           Nueva factura
         </Link>
       </header>
+
+      <AlertasMonotributo />
 
       {/* Stats 2x2 en mobile, 4 columnas en desktop */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -230,4 +242,120 @@ export default function DashboardPage() {
       </Card>
     </div>
   );
+}
+
+/* ---------- Alertas del monotributo en el dashboard ---------- */
+
+interface Alerta {
+  tono: "error" | "warn" | "info";
+  texto: string;
+  href: string;
+}
+
+function AlertasMonotributo() {
+  const { negocio } = useAuth();
+  const [alertas, setAlertas] = useState<Alerta[]>([]);
+
+  useEffect(() => {
+    if (!negocio) return;
+    const desde = new Date();
+    desde.setFullYear(desde.getFullYear() - 1);
+    const esMono = negocio.condicion_iva === "monotributo";
+    Promise.all([
+      supabase.from("monotributo_categorias").select("categoria, limite_anual"),
+      supabase
+        .from("facturas")
+        .select("total, cobrada, estado")
+        .in("estado", ["emitida", "enviada"])
+        .gte("fecha", desde.toISOString().slice(0, 10)),
+    ]).then(([cRes, fRes]) => {
+      const cats = (cRes.data as { categoria: string; limite_anual: number }[]) ?? [];
+      const facturas = (fRes.data as { total: number; cobrada: boolean }[]) ?? [];
+      const facturado = facturas.reduce((a, f) => a + Number(f.total), 0);
+      const impagas = facturas.filter((f) => !f.cobrada);
+      const impagoTotal = impagas.reduce((a, f) => a + Number(f.total), 0);
+      const nuevas: Alerta[] = [];
+
+      if (esMono) {
+        const cat = cats.find((c) => c.categoria === negocio.categoria_monotributo);
+        if (cat) {
+          const pct = Math.round((facturado / Number(cat.limite_anual)) * 100);
+          if (pct >= 100)
+            nuevas.push({
+              tono: "error",
+              texto: `Te pasaste del tope de la categoría ${cat.categoria} — tenés que recategorizar.`,
+              href: "/monotributo",
+            });
+          else if (pct >= 80)
+            nuevas.push({
+              tono: "warn",
+              texto: `Usaste el ${pct}% de tu límite anual del monotributo.`,
+              href: "/monotributo",
+            });
+        }
+        const cuota = proximaCuotaMonotributo();
+        const d = diasHasta(cuota);
+        if (d <= 5)
+          nuevas.push({
+            tono: "warn",
+            texto: `Tu cuota de monotributo vence ${
+              d === 0 ? "hoy" : d === 1 ? "mañana" : `en ${d} días`
+            } (${cuota.getDate()}/${cuota.getMonth() + 1}).`,
+            href: "/monotributo",
+          });
+      }
+
+      if (impagas.length > 0)
+        nuevas.push({
+          tono: "info",
+          texto: `Tenés ${impagas.length} factura${impagas.length === 1 ? "" : "s"} impaga${
+            impagas.length === 1 ? "" : "s"
+          } por ${formatoPesos(impagoTotal)}.`,
+          href: "/facturas",
+        });
+
+      setAlertas(nuevas);
+    });
+  }, [negocio]);
+
+  if (!alertas.length) return null;
+
+  const estilo: Record<Alerta["tono"], string> = {
+    error: "border-status-error/30 bg-status-error/10 text-status-error",
+    warn: "border-status-warn/30 bg-status-warn/10 text-status-warn",
+    info: "border-brand/30 bg-brand-dim text-brand-hover",
+  };
+
+  return (
+    <div className="animate-fade-up space-y-2">
+      {alertas.map((a, i) => (
+        <Link
+          key={i}
+          href={a.href}
+          className={`flex items-center gap-2.5 rounded-card border px-4 py-2.5 text-[12px] transition-opacity hover:opacity-90 ${estilo[a.tono]}`}
+        >
+          {a.tono === "info" ? (
+            <Bell size={15} className="shrink-0" />
+          ) : (
+            <AlertTriangle size={15} className="shrink-0" />
+          )}
+          <span className="flex-1">{a.texto}</span>
+          <ArrowRight size={14} className="shrink-0 opacity-70" />
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function diasHasta(fecha: Date) {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.ceil((fecha.getTime() - hoy.getTime()) / 86_400_000));
+}
+
+function proximaCuotaMonotributo() {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const dia20 = new Date(hoy.getFullYear(), hoy.getMonth(), 20);
+  return hoy <= dia20 ? dia20 : new Date(hoy.getFullYear(), hoy.getMonth() + 1, 20);
 }
