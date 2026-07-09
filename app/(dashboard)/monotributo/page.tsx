@@ -33,6 +33,7 @@ export default function MonotributoPage() {
   const { negocio, refrescar } = useAuth();
   const [cats, setCats] = useState<Categoria[]>([]);
   const [facturas, setFacturas] = useState<FacturaMin[]>([]);
+  const [egresos12m, setEgresos12m] = useState(0);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
 
@@ -42,16 +43,21 @@ export default function MonotributoPage() {
     if (!negocio) return;
     const desde = new Date();
     desde.setFullYear(desde.getFullYear() - 1);
+    const desdeISO = desde.toISOString().slice(0, 10);
     Promise.all([
       supabase.from("monotributo_categorias").select("*").order("orden"),
       supabase
         .from("facturas")
         .select("total, fecha")
         .in("estado", ["emitida", "enviada"])
-        .gte("fecha", desde.toISOString().slice(0, 10)),
-    ]).then(([c, f]) => {
+        .gte("fecha", desdeISO),
+      supabase.from("egresos").select("monto").gte("fecha", desdeISO),
+    ]).then(([c, f, e]) => {
       setCats((c.data as Categoria[]) ?? []);
       setFacturas((f.data as FacturaMin[]) ?? []);
+      setEgresos12m(
+        ((e.data as { monto: number }[]) ?? []).reduce((a, x) => a + Number(x.monto), 0)
+      );
       setCargando(false);
     });
   }, [negocio]);
@@ -326,6 +332,42 @@ export default function MonotributoPage() {
                   <span className="text-[11px] text-text-secondary">{m.label}</span>
                 </div>
               ))}
+            </div>
+          </Card>
+
+          {/* ---------- Resultado (ingresos − egresos) ---------- */}
+          <Card glass className="animate-fade-up" style={{ animationDelay: "140ms" }}>
+            <div className="flex items-center justify-between">
+              <p className="text-[13px] font-medium text-text-secondary">
+                Resultado (últimos 12 meses)
+              </p>
+              <Link href="/egresos" className="text-[12px] text-brand-hover hover:underline">
+                Cargar gastos →
+              </Link>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-btn bg-white/5 px-2 py-2.5">
+                <p className="text-[10px] uppercase tracking-wide text-text-muted">Ingresos</p>
+                <p className="mt-0.5 text-[14px] font-semibold tabular-nums text-status-ok">
+                  {formatoPesosCorto(facturado)}
+                </p>
+              </div>
+              <div className="rounded-btn bg-white/5 px-2 py-2.5">
+                <p className="text-[10px] uppercase tracking-wide text-text-muted">Egresos</p>
+                <p className="mt-0.5 text-[14px] font-semibold tabular-nums text-status-warn">
+                  {formatoPesosCorto(egresos12m)}
+                </p>
+              </div>
+              <div className="rounded-btn bg-brand-dim px-2 py-2.5">
+                <p className="text-[10px] uppercase tracking-wide text-text-muted">Resultado</p>
+                <p
+                  className={`mt-0.5 text-[14px] font-semibold tabular-nums ${
+                    facturado - egresos12m >= 0 ? "text-brand-hover" : "text-status-error"
+                  }`}
+                >
+                  {formatoPesosCorto(facturado - egresos12m)}
+                </p>
+              </div>
             </div>
           </Card>
 
