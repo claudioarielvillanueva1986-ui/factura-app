@@ -10,6 +10,7 @@ import {
   Settings,
   LogOut,
   ShieldCheck,
+  Landmark,
 } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 import { useEsAdminPlataforma } from "@/lib/useEsAdminPlataforma";
@@ -19,6 +20,7 @@ import { Splash } from "@/components/ui/Splash";
 const NAV = [
   { href: "/", label: "Dashboard", corto: "Inicio", icon: LayoutDashboard },
   { href: "/facturas", label: "Facturas", corto: "Facturas", icon: FileText },
+  { href: "/monotributo", label: "Mi Monotributo", corto: "Monotrib.", icon: Landmark },
   { href: "/clientes", label: "Clientes", corto: "Clientes", icon: Users },
   { href: "/envios", label: "Envíos WA", corto: "Envíos", icon: MessageCircle },
   { href: "/configuracion", label: "Configuración", corto: "Config", icon: Settings },
