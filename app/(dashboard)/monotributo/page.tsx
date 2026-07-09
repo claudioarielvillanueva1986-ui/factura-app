@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { TrendingUp, AlertTriangle, CheckCircle2, Info, ArrowRight } from "lucide-react";
+import {
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle2,
+  Info,
+  ArrowRight,
+  CalendarClock,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/useAuth";
 import { Card } from "@/components/ui/Card";
@@ -251,6 +258,54 @@ export default function MonotributoPage() {
             </Card>
           )}
 
+          {/* ---------- Próximos vencimientos ---------- */}
+          <Card glass className="animate-fade-up space-y-3" style={{ animationDelay: "110ms" }}>
+            <p className="flex items-center gap-2 text-[13px] font-medium text-text-secondary">
+              <CalendarClock size={16} className="text-brand-hover" />
+              Próximos vencimientos
+            </p>
+            <div className="space-y-2">
+              {proximosVencimientos().map((v) => {
+                const dias = diasHasta(v.fecha);
+                const urgente = dias <= 5;
+                return (
+                  <div
+                    key={v.titulo}
+                    className="flex items-center gap-3 rounded-btn bg-white/[0.03] px-3 py-2.5"
+                  >
+                    <span
+                      className={`flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-btn ${
+                        urgente ? "bg-status-warn/15 text-status-warn" : "bg-brand-dim text-brand-hover"
+                      }`}
+                    >
+                      <span className="text-[15px] font-bold leading-none tabular-nums">
+                        {v.fecha.getDate()}
+                      </span>
+                      <span className="text-[9px] uppercase">{MESES[v.fecha.getMonth()]}</span>
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-medium">{v.titulo}</p>
+                      <p className="text-[11px] text-text-muted">{v.nota}</p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                        urgente
+                          ? "bg-status-warn/15 text-status-warn"
+                          : "bg-white/5 text-text-secondary"
+                      }`}
+                    >
+                      {dias === 0 ? "¡hoy!" : dias === 1 ? "mañana" : `en ${dias} días`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-text-muted">
+              La cuota del monotributo vence el 20 de cada mes. La recategorización se hace en
+              enero y julio.
+            </p>
+          </Card>
+
           {/* ---------- Ingresos por mes ---------- */}
           <Card glass className="animate-fade-up space-y-4" style={{ animationDelay: "120ms" }}>
             <p className="text-[13px] font-medium text-text-secondary">
@@ -332,6 +387,34 @@ function SelectorCategoria({
       ))}
     </select>
   );
+}
+
+function diasHasta(fecha: Date) {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.ceil((fecha.getTime() - hoy.getTime()) / 86_400_000));
+}
+
+// Próximos vencimientos del monotributo (cuota mensual el 20; recategorización
+// en enero y julio). Simple y sin depender de nada externo.
+function proximosVencimientos(): { titulo: string; fecha: Date; nota: string }[] {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const venc: { titulo: string; fecha: Date; nota: string }[] = [];
+
+  const dia20esteMes = new Date(hoy.getFullYear(), hoy.getMonth(), 20);
+  const cuota =
+    hoy <= dia20esteMes ? dia20esteMes : new Date(hoy.getFullYear(), hoy.getMonth() + 1, 20);
+  venc.push({ titulo: "Cuota de monotributo", fecha: cuota, nota: "Pago mensual" });
+
+  const recat = [
+    new Date(hoy.getFullYear(), 0, 20),
+    new Date(hoy.getFullYear(), 6, 20),
+    new Date(hoy.getFullYear() + 1, 0, 20),
+  ].find((d) => d >= hoy)!;
+  venc.push({ titulo: "Recategorización", fecha: recat, nota: "Revisión semestral" });
+
+  return venc.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
 }
 
 // $1.234.567 → "$1,2M" / "$850k" para las etiquetas del gráfico

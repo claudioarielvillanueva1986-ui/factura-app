@@ -58,6 +58,7 @@ export interface Factura {
   origen: string;
   mp_payment_id: string | null;
   wa_enviado: boolean;
+  cobrada: boolean;
   error_mensaje: string | null;
   created_at: string;
   clientes?: Pick<Cliente, "nombre" | "telefono" | "cuit_dni"> | null;

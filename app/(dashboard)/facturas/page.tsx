@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, MessageCircle, FileDown } from "lucide-react";
+import { Plus, Search, MessageCircle, FileDown, CircleDollarSign, Circle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { enviarPorWhatsApp } from "@/lib/whatsapp";
 import { Card } from "@/components/ui/Card";
@@ -16,11 +16,12 @@ import {
   type Factura,
 } from "@/lib/types";
 
-type Filtro = "todas" | "auto_mp" | "sin_wa" | "borradores";
+type Filtro = "todas" | "auto_mp" | "sin_wa" | "impagas" | "borradores";
 
 const FILTROS: { id: Filtro; label: string }[] = [
   { id: "todas", label: "Todas" },
   { id: "auto_mp", label: "⚡ Auto MP" },
+  { id: "impagas", label: "Impagas" },
   { id: "sin_wa", label: "Sin enviar WA" },
   { id: "borradores", label: "Borradores" },
 ];
@@ -51,6 +52,10 @@ export default function FacturasPage() {
     if (filtro === "auto_mp") lista = lista.filter((f) => f.origen === "mercadopago");
     if (filtro === "sin_wa")
       lista = lista.filter((f) => f.estado === "emitida" && !f.wa_enviado);
+    if (filtro === "impagas")
+      lista = lista.filter(
+        (f) => (f.estado === "emitida" || f.estado === "enviada") && !f.cobrada
+      );
     if (filtro === "borradores") lista = lista.filter((f) => f.estado === "borrador");
 
     const q = busqueda.trim().toLowerCase();
@@ -78,6 +83,22 @@ export default function FacturasPage() {
     cargar();
   }
 
+  async function toggleCobrada(f: Factura) {
+    // Optimista: actualizamos la UI y persistimos.
+    setFacturas((prev) =>
+      prev.map((x) => (x.id === f.id ? { ...x, cobrada: !x.cobrada } : x))
+    );
+    await supabase.from("facturas").update({ cobrada: !f.cobrada }).eq("id", f.id);
+  }
+
+  // Resumen de cobranzas sobre los comprobantes emitidos.
+  const cobro = useMemo(() => {
+    const emitidas = facturas.filter((f) => f.estado === "emitida" || f.estado === "enviada");
+    const cobrado = emitidas.filter((f) => f.cobrada).reduce((a, f) => a + Number(f.total), 0);
+    const impago = emitidas.filter((f) => !f.cobrada).reduce((a, f) => a + Number(f.total), 0);
+    return { cobrado, impago, hay: emitidas.length > 0 };
+  }, [facturas]);
+
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <header className="flex animate-fade-up items-center justify-between">
@@ -90,6 +111,28 @@ export default function FacturasPage() {
           Nueva factura
         </Link>
       </header>
+
+      {/* Resumen de cobranzas */}
+      {cobro.hay && (cobro.cobrado > 0 || cobro.impago > 0) && (
+        <Card
+          glass
+          className="grid animate-fade-up grid-cols-2 gap-3 p-4"
+          style={{ animationDelay: "30ms" }}
+        >
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-text-muted">Cobrado</p>
+            <p className="mt-0.5 text-[18px] font-semibold tabular-nums text-status-ok">
+              {formatoPesos(cobro.cobrado)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-text-muted">No cobrado</p>
+            <p className="mt-0.5 text-[18px] font-semibold tabular-nums text-status-warn">
+              {formatoPesos(cobro.impago)}
+            </p>
+          </div>
+        </Card>
+      )}
 
       {/* Filtros pill + buscador */}
       <div
@@ -150,6 +193,20 @@ export default function FacturasPage() {
                   <span className="text-[13px] font-semibold tabular-nums">
                     {formatoPesos(f.total)}
                   </span>
+                  {tieneCae && (
+                    <button
+                      onClick={() => toggleCobrada(f)}
+                      title={f.cobrada ? "Cobrada — tocá para marcar impaga" : "Impaga — tocá para marcar cobrada"}
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium transition-colors ${
+                        f.cobrada
+                          ? "bg-status-ok/15 text-status-ok"
+                          : "bg-status-warn/15 text-status-warn hover:bg-status-warn/25"
+                      }`}
+                    >
+                      {f.cobrada ? <CircleDollarSign size={13} /> : <Circle size={13} />}
+                      {f.cobrada ? "Cobrada" : "Impaga"}
+                    </button>
+                  )}
                   <EstadoBadge estado={f.estado} origen={f.origen} />
                   {tieneCae && (
                     <a
