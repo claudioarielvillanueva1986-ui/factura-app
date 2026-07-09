@@ -11,6 +11,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  ShieldCheck,
+  ExternalLink,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Card } from "@/components/ui/Card";
@@ -20,6 +22,10 @@ import { formatoPesos, formatoNumeroFactura, type EstadoFactura } from "@/lib/ty
 import { EstadoBadge } from "@/components/ui/EstadoBadge";
 
 type EstadoCuenta = "trial" | "activo" | "gracia" | "suspendido" | "cancelado";
+
+// CUIT de la plataforma (dueña del certificado). Es quien debe ACEPTAR en ARCA
+// la designación de cada cliente que delega (2° paso del trámite).
+const PLATAFORMA_CUIT = process.env.NEXT_PUBLIC_PLATAFORMA_CUIT ?? "de la plataforma";
 
 interface NegocioAdmin {
   id: string;
@@ -534,6 +540,44 @@ function DetalleNegocio({
           </p>
         )}
       </div>
+
+      {/* Recordatorio: ARCA requiere que la plataforma ACEPTE la designación
+          del cliente (2° paso, del lado nuestro). Sin esto, WSFE rechaza aunque
+          el cliente ya haya delegado. Se muestra mientras haya errores/pendientes. */}
+      {(negocio.facturas_error > 0 || negocio.facturas_pendiente_arca > 0) && (
+        <div className="rounded-btn border border-brand/30 bg-brand-dim px-3 py-3 text-[12px]">
+          <p className="flex items-center gap-1.5 font-semibold text-brand-hover">
+            <ShieldCheck size={14} />
+            ¿Ya lo aceptaste en ARCA?
+          </p>
+          <p className="mt-1.5 text-text-secondary">
+            Delegar tiene <strong>2 pasos</strong>: el cliente delega el servicio (lo hace él),
+            y <strong>vos tenés que aceptar la designación</strong> desde la cuenta de ARCA de
+            la plataforma (CUIT {PLATAFORMA_CUIT}). Si el cliente ya delegó y sigue con errores,
+            casi siempre falta este paso.
+          </p>
+          <ol className="mt-2 list-decimal space-y-0.5 pl-4 text-[11px] text-text-muted">
+            <li>Entrá a ARCA con la Clave Fiscal de la plataforma (CUIT {PLATAFORMA_CUIT}).</li>
+            <li>
+              Abrí el servicio <strong>“Aceptación de Designación”</strong> (si no lo tenés,
+              adherilo desde Administrador de Relaciones).
+            </li>
+            <li>
+              Aceptá la designación pendiente del CUIT{" "}
+              <strong>{negocio.cuit ?? "del cliente"}</strong> para Facturación Electrónica.
+            </li>
+          </ol>
+          <a
+            href="https://auth.afip.gob.ar/contribuyente_/login.xhtml"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-btn bg-brand px-3 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-brand-hover"
+          >
+            <ExternalLink size={12} />
+            Abrir ARCA para aceptar
+          </a>
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
