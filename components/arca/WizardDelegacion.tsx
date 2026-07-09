@@ -11,6 +11,7 @@ import {
   ListChecks,
   UserCheck,
   PartyPopper,
+  RefreshCw,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/useAuth";
@@ -43,6 +44,9 @@ export function WizardDelegacion() {
   const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
   const [puntoVenta, setPuntoVenta] = useState("");
   const [pvGuardado, setPvGuardado] = useState(false);
+  // Permite volver a ver/rehacer los pasos aunque ya figure "verificado"
+  // (ej: la delegación quedó sobre el servicio equivocado y hay que corregirla).
+  const [rehacer, setRehacer] = useState(false);
 
   const storageKey = negocio ? `factura_arca_wizard_${negocio.id}` : null;
   const verificado = Boolean(negocio?.arca_verificado_en);
@@ -107,7 +111,7 @@ export function WizardDelegacion() {
 
   const completados = Object.values(hechos).filter(Boolean).length;
 
-  if (verificado) {
+  if (verificado && !rehacer) {
     return (
       <Card glass className="animate-fade-up space-y-3 text-center">
         <PartyPopper size={36} className="mx-auto text-status-ok" />
@@ -119,10 +123,24 @@ export function WizardDelegacion() {
             emitir facturas electrónicas con CAE.
           </p>
         </div>
-        <Button onClick={verificar} disabled={verificando} variant="ghost">
-          <Plug size={14} />
-          {verificando ? "Consultando ARCA…" : "Volver a verificar"}
-        </Button>
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button onClick={verificar} disabled={verificando} variant="ghost">
+            <Plug size={14} />
+            {verificando ? "Consultando ARCA…" : "Volver a verificar"}
+          </Button>
+          <Button
+            onClick={() => {
+              setHechos({});
+              if (storageKey) localStorage.removeItem(storageKey);
+              setResultado(null);
+              setRehacer(true);
+            }}
+            variant="ghost"
+          >
+            <RefreshCw size={14} />
+            Corregir / rehacer la delegación
+          </Button>
+        </div>
         {resultado && (
           <p
             className={`rounded-btn px-3 py-2 text-[12px] ${
@@ -134,12 +152,25 @@ export function WizardDelegacion() {
             {resultado.texto}
           </p>
         )}
+        <p className="text-[11px] text-text-muted">
+          Si las facturas te dan error de autorización, la delegación pudo haber quedado sobre
+          el servicio equivocado. Tocá “Corregir / rehacer la delegación” y seguí los pasos de nuevo.
+        </p>
       </Card>
     );
   }
 
   return (
     <div className="space-y-4">
+      {rehacer && (
+        <div className="animate-fade-up rounded-card border border-status-warn/30 bg-status-warn/10 px-4 py-3 text-[12px] text-status-warn">
+          <strong>Estás corrigiendo la delegación.</strong> El error más común es haber
+          elegido la “Facturación Electrónica” común en vez de la que está dentro de{" "}
+          <strong>WebServices</strong> (paso 3), o haber autorizado un CUIT distinto al de
+          facturá. (paso 4). Rehacé los pasos con atención y volvé a verificar.
+        </div>
+      )}
+
       {/* Intro + progreso */}
       <Card glass className="animate-fade-up space-y-2">
         <h2 className="text-[14px] font-semibold">Conectá tu facturación con ARCA</h2>
