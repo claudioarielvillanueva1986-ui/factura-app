@@ -137,17 +137,24 @@ interface NegocioARCA {
   condicion_iva: string;
   arca_modo?: string | null;
   arca_verificado_en?: string | null;
+  arca_delegado_en?: string | null;
 }
 
-// ARCA puede tardar hasta 24 hs, desde que se verifica la delegación, en
-// habilitar la EMISIÓN de comprobantes (la lectura funciona antes). Para no
-// generar errores durante esa ventana, no intentamos emitir hasta que pase:
-// la factura queda pendiente y se emite sola después (vía el cron de reintento).
+// ARCA puede tardar hasta 24 hs, desde que se hace la delegación, en habilitar
+// la EMISIÓN de comprobantes (la lectura funciona antes). Para no generar
+// errores durante esa ventana, no intentamos emitir hasta que pase: la factura
+// queda pendiente y se emite sola después (vía el cron de reintento).
 const VENTANA_PROPAGACION_ARCA_MS = 24 * 60 * 60 * 1000;
 
-function arcaEnPropagacion(verificadoEn: string | null | undefined): boolean {
-  if (!verificadoEn) return false; // sin verificación no gateamos: fallará con otro mensaje claro
-  return Date.now() - new Date(verificadoEn).getTime() < VENTANA_PROPAGACION_ARCA_MS;
+// Arranque de la ventana: el momento real de la delegación si el admin lo
+// cargó (arca_delegado_en); si no, cuándo se verificó en la app.
+function inicioVentanaArca(negocio: NegocioARCA): string | null {
+  return negocio.arca_delegado_en ?? negocio.arca_verificado_en ?? null;
+}
+
+function arcaEnPropagacion(inicio: string | null): boolean {
+  if (!inicio) return false; // sin referencia no gateamos: fallará con otro mensaje claro
+  return Date.now() - new Date(inicio).getTime() < VENTANA_PROPAGACION_ARCA_MS;
 }
 
 // Resuelve las credenciales según el modo del negocio:
@@ -348,7 +355,7 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
   const { data: factura, error: errFactura } = await admin
     .from("facturas")
     .select(
-      "*, clientes(nombre, cuit_dni), negocios(id, cuit, punto_venta, condicion_iva, arca_modo, arca_verificado_en)"
+      "*, clientes(nombre, cuit_dni), negocios(id, cuit, punto_venta, condicion_iva, arca_modo, arca_verificado_en, arca_delegado_en)"
     )
     .eq("id", facturaId)
     .single();
@@ -398,8 +405,9 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
   // (ventana de 24 hs desde la verificación), NO intentamos emitir. Dejamos la
   // factura pendiente (borrador con aviso, no error) y el cron la emite sola
   // cuando pase la ventana.
-  if (arcaEnPropagacion(negocio.arca_verificado_en)) {
-    return await marcarPendienteArca(admin, facturaId, negocio.arca_verificado_en!);
+  const inicioVentana = inicioVentanaArca(negocio);
+  if (arcaEnPropagacion(inicioVentana)) {
+    return await marcarPendienteArca(admin, facturaId, inicioVentana!);
   }
 
   try {
