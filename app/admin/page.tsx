@@ -16,7 +16,8 @@ import { supabase } from "@/lib/supabase";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { formatoPesos } from "@/lib/types";
+import { formatoPesos, formatoNumeroFactura, type EstadoFactura } from "@/lib/types";
+import { EstadoBadge } from "@/components/ui/EstadoBadge";
 
 type EstadoCuenta = "trial" | "activo" | "gracia" | "suspendido" | "cancelado";
 
@@ -40,6 +41,7 @@ interface NegocioAdmin {
   // salud de facturación
   arca_ok: boolean;
   arca_verificado_en: string | null;
+  arca_delegado_en: string | null;
   punto_venta: number | null;
   mp_conectado: boolean;
   facturas_emitidas: number;
@@ -67,6 +69,19 @@ const ESTADO_BADGE: Record<EstadoCuenta, string> = {
   suspendido: "bg-status-error/15 text-status-error",
   cancelado: "bg-white/10 text-text-secondary",
 };
+
+// ISO (UTC) ↔ valor de <input type="datetime-local"> (hora local del navegador).
+function isoADatetimeLocal(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const off = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - off).toISOString().slice(0, 16);
+}
+function datetimeLocalAIso(v: string): string | null {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
 
 function tiempoRelativo(iso: string | null): string {
   if (!iso) return "—";
@@ -322,6 +337,20 @@ interface Pago {
   created_at: string;
 }
 
+interface FacturaAdmin {
+  id: string;
+  numero: number;
+  tipo: string;
+  estado: EstadoFactura;
+  origen: string | null;
+  total: number;
+  fecha: string;
+  cae: string | null;
+  error_mensaje: string | null;
+  cliente_nombre: string | null;
+  created_at: string;
+}
+
 function DetalleNegocio({
   negocio,
   onCambio,
@@ -334,15 +363,20 @@ function DetalleNegocio({
   const [precio, setPrecio] = useState(String(negocio.precio_mensual ?? ""));
   const [notas, setNotas] = useState(negocio.notas_admin ?? "");
   const [estado, setEstado] = useState<EstadoCuenta>(negocio.estado_cuenta);
+  const [delegadoEn, setDelegadoEn] = useState(isoADatetimeLocal(negocio.arca_delegado_en));
   const [guardando, setGuardando] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [pagos, setPagos] = useState<Pago[] | null>(null);
+  const [facturas, setFacturas] = useState<FacturaAdmin[] | null>(null);
 
   useEffect(() => {
     supabase
       .rpc("admin_listar_pagos", { p_negocio_id: negocio.id })
       .then(({ data }) => setPagos((data as Pago[]) ?? []));
+    supabase
+      .rpc("admin_listar_facturas", { p_negocio_id: negocio.id, p_limit: 30 })
+      .then(({ data }) => setFacturas((data as FacturaAdmin[]) ?? []));
   }, [negocio.id]);
 
   async function guardar() {
@@ -355,6 +389,7 @@ function DetalleNegocio({
       p_estado_cuenta: estado,
       p_precio_mensual: precio ? Number(precio) : null,
       p_notas_admin: notas || null,
+      p_arca_delegado_en: datetimeLocalAIso(delegadoEn),
     });
     setGuardando(false);
     if (error) {
@@ -434,11 +469,14 @@ function DetalleNegocio({
         {/* Delegación / verificación de ARCA + estimación de propagación */}
         <div className="mt-2 space-y-1 text-[11px]">
           <p className="text-text-muted">
-            Conexión ARCA verificada:{" "}
-            {negocio.arca_verificado_en ? (
+            Delegación ARCA:{" "}
+            {negocio.arca_delegado_en ?? negocio.arca_verificado_en ? (
               <span className="text-text-secondary">
-                {new Date(negocio.arca_verificado_en).toLocaleString("es-AR")} ·{" "}
-                {tiempoRelativo(negocio.arca_verificado_en)}
+                {new Date(
+                  (negocio.arca_delegado_en ?? negocio.arca_verificado_en)!
+                ).toLocaleString("es-AR")}{" "}
+                · {tiempoRelativo(negocio.arca_delegado_en ?? negocio.arca_verificado_en)}
+                {!negocio.arca_delegado_en && " (según verificación)"}
               </span>
             ) : (
               <span className="text-status-warn">todavía no verificó la conexión</span>
@@ -447,7 +485,7 @@ function DetalleNegocio({
           </p>
           {(negocio.facturas_error > 0 || negocio.facturas_pendiente_arca > 0) &&
             (() => {
-              const est = estimacionArca(negocio.arca_verificado_en);
+              const est = estimacionArca(negocio.arca_delegado_en ?? negocio.arca_verificado_en);
               if (!est) return null;
               return (
                 <p
@@ -467,6 +505,20 @@ function DetalleNegocio({
               {tiempoRelativo(negocio.primer_error_en)})
             </p>
           )}
+          {/* Fecha real de la delegación (ajusta el contador de 24 hs) */}
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <label className="text-text-muted">Delegación hecha el:</label>
+            <input
+              type="datetime-local"
+              value={delegadoEn}
+              onChange={(e) => setDelegadoEn(e.target.value)}
+              className="rounded-btn border border-line bg-[#1A2235] px-2 py-1 text-[11px]"
+            />
+            <span className="text-text-muted">
+              (cargá cuándo el cliente terminó el trámite en ARCA — arranca el conteo de 24 hs
+              desde acá. Guardá con el botón de abajo.)
+            </span>
+          </div>
         </div>
 
         {negocio.ultima_emision && (
@@ -566,6 +618,55 @@ function DetalleNegocio({
           </Button>
         )}
         {mensaje && <span className="text-[12px] text-text-secondary">{mensaje}</span>}
+      </div>
+
+      {/* Últimas facturas del cliente (para ayudarlo/diagnosticar) */}
+      <div>
+        <p className="mb-2 flex items-center gap-1.5 text-[12px] font-medium text-text-secondary">
+          <FileText size={13} />
+          Últimas facturas del cliente
+        </p>
+        {facturas === null ? (
+          <p className="text-[12px] text-text-muted">Cargando…</p>
+        ) : facturas.length === 0 ? (
+          <p className="text-[12px] text-text-muted">Este cliente todavía no generó facturas.</p>
+        ) : (
+          <div className="divide-y divide-line overflow-hidden rounded-btn border border-line">
+            {facturas.map((f) => {
+              const tieneCae = Boolean(f.cae) && (f.estado === "emitida" || f.estado === "enviada");
+              return (
+                <div key={f.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-white/[0.02] px-3 py-2 text-[12px]">
+                  <span className="w-[70px] shrink-0 tabular-nums text-text-secondary">
+                    {formatoNumeroFactura(f.tipo as "A" | "B" | "C", f.numero, negocio.punto_venta ?? 1)}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-text-muted">
+                    {f.cliente_nombre ?? "Consumidor Final"} ·{" "}
+                    {new Date(`${f.fecha}T00:00:00`).toLocaleDateString("es-AR")}
+                  </span>
+                  <span className="tabular-nums font-medium">{formatoPesos(Number(f.total))}</span>
+                  <EstadoBadge estado={f.estado} />
+                  {tieneCae && (
+                    <a
+                      href={`/api/facturas/${f.id}/pdf`}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Ver PDF"
+                      className="text-brand-hover hover:underline"
+                    >
+                      PDF
+                    </a>
+                  )}
+                  {f.estado === "borrador" && f.error_mensaje && (
+                    <span className="w-full text-[11px] text-brand-hover">⏳ {f.error_mensaje}</span>
+                  )}
+                  {f.estado === "error" && f.error_mensaje && (
+                    <span className="w-full text-[11px] text-status-error">⚠ {f.error_mensaje}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div>
