@@ -17,7 +17,7 @@ export async function GET(
   const { data: cobro } = await admin
     .from("cobros")
     .select(
-      "id, external_reference, monto, descripcion, estado, metodo, mp_payment_id, mp_order_id, terminal_id, init_point, factura_id, created_at"
+      "id, external_reference, monto, descripcion, estado, metodo, mp_payment_id, mp_order_id, merchant_order_id, terminal_id, init_point, qr_data, factura_id, created_at"
     )
     .eq("id", id)
     .eq("negocio_id", auth.ctx.negocioId)

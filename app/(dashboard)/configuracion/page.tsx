@@ -715,6 +715,9 @@ function TabMercadoPago() {
         )}
       </Card>
 
+      {/* Dirección del local, para el QR real de Mercado Pago (Store/POS) */}
+      <CardDireccionQR esAdmin={esAdmin} conectado={config?.conectado ?? false} />
+
       {/* Email automático del comprobante al cliente */}
       <CardEmailAutomatico esAdmin={esAdmin} />
 
@@ -754,6 +757,100 @@ function TabMercadoPago() {
         </form>
       </details>
     </div>
+  );
+}
+
+// Dirección del local: se usa una sola vez para dar de alta la Tienda+Caja
+// del negocio en Mercado Pago quando una app del ecosistema (ej. Soporte
+// Móvil) pide un cobro con metodo="qr_dinamico" — el QR real que reconoce el
+// lector de la app de MP (a diferencia del link de Checkout Pro).
+function CardDireccionQR({ esAdmin, conectado }: { esAdmin: boolean; conectado: boolean }) {
+  const { negocio } = useAuth();
+  const [dir, setDir] = useState({ calle: "", numero: "", ciudad: "", provincia: "" });
+  const [guardando, setGuardando] = useState(false);
+  const [guardado, setGuardado] = useState(false);
+
+  useEffect(() => {
+    if (!negocio) return;
+    supabase
+      .from("mercadopago_config")
+      .select("domicilio_calle, domicilio_numero, domicilio_ciudad, domicilio_provincia")
+      .eq("negocio_id", negocio.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        setDir({
+          calle: data?.domicilio_calle ?? "",
+          numero: data?.domicilio_numero ?? "",
+          ciudad: data?.domicilio_ciudad ?? "",
+          provincia: data?.domicilio_provincia ?? "",
+        });
+      });
+  }, [negocio]);
+
+  async function guardar(e: React.FormEvent) {
+    e.preventDefault();
+    if (!negocio) return;
+    setGuardando(true);
+    await supabase.from("mercadopago_config").upsert({
+      negocio_id: negocio.id,
+      domicilio_calle: dir.calle.trim() || null,
+      domicilio_numero: dir.numero.trim() || null,
+      domicilio_ciudad: dir.ciudad.trim() || null,
+      domicilio_provincia: dir.provincia.trim() || null,
+      updated_at: new Date().toISOString(),
+    });
+    setGuardando(false);
+    setGuardado(true);
+    setTimeout(() => setGuardado(false), 2000);
+  }
+
+  if (!conectado) return null;
+
+  return (
+    <Card glass>
+      <h2 className="mb-1 text-[13px] font-semibold">Dirección del local (para QR real)</h2>
+      <p className="mb-3 text-[11px] text-text-muted">
+        Se usa una sola vez para dar de alta tu Tienda en Mercado Pago y poder generar el QR
+        dinámico real (el que reconoce el lector de la app de MP, a diferencia del link de
+        Checkout Pro). Si no la cargás, las apps conectadas van a poder seguir cobrando con el
+        link/QR de Checkout Pro igual.
+      </p>
+      <form onSubmit={guardar} className="grid grid-cols-2 gap-3">
+        <Input
+          id="dir-calle"
+          label="Calle"
+          value={dir.calle}
+          onChange={(e) => setDir({ ...dir, calle: e.target.value })}
+          disabled={!esAdmin}
+        />
+        <Input
+          id="dir-numero"
+          label="Número"
+          value={dir.numero}
+          onChange={(e) => setDir({ ...dir, numero: e.target.value })}
+          disabled={!esAdmin}
+        />
+        <Input
+          id="dir-ciudad"
+          label="Ciudad"
+          value={dir.ciudad}
+          onChange={(e) => setDir({ ...dir, ciudad: e.target.value })}
+          disabled={!esAdmin}
+        />
+        <Input
+          id="dir-provincia"
+          label="Provincia"
+          value={dir.provincia}
+          onChange={(e) => setDir({ ...dir, provincia: e.target.value })}
+          disabled={!esAdmin}
+        />
+        <div className="col-span-2">
+          <Button type="submit" variant="ghost" disabled={!esAdmin || guardando}>
+            {guardado ? "✓ Guardado" : "Guardar dirección"}
+          </Button>
+        </div>
+      </form>
+    </Card>
   );
 }
 

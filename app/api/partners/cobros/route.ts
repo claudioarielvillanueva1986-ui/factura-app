@@ -4,6 +4,7 @@ import { autenticarPartner } from "@/lib/partnerAuth";
 import { obtenerAccessTokenMP } from "@/lib/mp";
 import { crearPreferenciaCobro } from "@/lib/mpCobros";
 import { crearOrdenPoint, cambiarModoPoint } from "@/lib/mpPoint";
+import { asegurarStorePos, crearQRDinamico } from "@/lib/mpQr";
 import { consumirRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
@@ -13,7 +14,7 @@ interface Body {
   descripcion?: string;
   external_reference?: string; // referencia propia del partner (idempotencia)
   facturar?: boolean; // default true: al aprobarse el pago, se factura y emite
-  metodo?: "qr" | "point"; // default "qr" (link/QR de Checkout Pro)
+  metodo?: "qr" | "point" | "qr_dinamico"; // default "qr" (link/QR de Checkout Pro)
   terminal_id?: string; // requerido si metodo="point" — ver GET /api/partners/terminales
   device_id?: string; // alias de terminal_id (nombre usado por la API de MP)
 }
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Monto inválido" }, { status: 400 });
   }
 
-  const metodo = body.metodo === "point" ? "point" : "qr";
+  const metodo = body.metodo === "point" ? "point" : body.metodo === "qr_dinamico" ? "qr_dinamico" : "qr";
   const terminalId = body.terminal_id ?? body.device_id ?? null;
   if (metodo === "point" && !terminalId) {
     return NextResponse.json(
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
   if (body.external_reference) {
     const { data: previo } = await admin
       .from("cobros")
-      .select("id, estado, init_point, mp_preference_id, metodo, mp_order_id, terminal_id")
+      .select("id, estado, init_point, mp_preference_id, metodo, mp_order_id, terminal_id, qr_data")
       .eq("negocio_id", negocioId)
       .eq("app_id", appId)
       .eq("external_reference", body.external_reference)
@@ -79,6 +80,7 @@ export async function POST(request: NextRequest) {
         estado: previo.estado,
         metodo: previo.metodo,
         init_point: previo.init_point,
+        qr_data: previo.qr_data,
         idempotente: true,
       });
     }
@@ -153,6 +155,69 @@ export async function POST(request: NextRequest) {
         .eq("id", cobro.id);
       return NextResponse.json(
         { error: e instanceof Error ? e.message : "No se pudo crear la orden en la terminal Point" },
+        { status: 502 }
+      );
+    }
+  }
+
+  if (metodo === "qr_dinamico") {
+    // 2) QR real de Mercado Pago (Dynamic QR Model) — a diferencia del QR de
+    // Checkout Pro (metodo="qr"), este SÍ lo reconoce el lector de la app de
+    // MP. Requiere Tienda + Caja dadas de alta (se crean solas la primera vez).
+    try {
+      const { data: config } = await admin
+        .from("mercadopago_config")
+        .select("mp_user_id")
+        .eq("negocio_id", negocioId)
+        .maybeSingle();
+      if (!config?.mp_user_id) {
+        throw new Error("El negocio no tiene Mercado Pago conectado en facturá.");
+      }
+      const { data: negocio } = await admin
+        .from("negocios")
+        .select("nombre")
+        .eq("id", negocioId)
+        .maybeSingle();
+
+      const { posExternalId } = await asegurarStorePos(
+        admin,
+        accessToken,
+        negocioId,
+        config.mp_user_id,
+        negocio?.nombre ?? "Local"
+      );
+
+      const orden = await crearQRDinamico(accessToken, {
+        mpUserId: config.mp_user_id,
+        posExternalId,
+        monto,
+        descripcion: body.descripcion ?? "Cobro",
+        externalReference: cobro.id,
+        notificationUrl: `${appUrl}/api/mp/webhook`,
+      });
+
+      await admin
+        .from("cobros")
+        .update({
+          merchant_order_id: orden.in_store_order_id,
+          qr_data: orden.qr_data,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", cobro.id);
+
+      return NextResponse.json({
+        cobro_id: cobro.id,
+        estado: "pendiente",
+        metodo: "qr_dinamico",
+        qr_data: orden.qr_data,
+      });
+    } catch (e) {
+      await admin
+        .from("cobros")
+        .update({ estado: "cancelado", updated_at: new Date().toISOString() })
+        .eq("id", cobro.id);
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "No se pudo generar el QR dinámico" },
         { status: 502 }
       );
     }
