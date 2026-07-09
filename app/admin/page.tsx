@@ -178,6 +178,8 @@ export default function AdminPage() {
         </p>
       </header>
 
+      <CategoriasMonotributoEditor />
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card glass hover className="p-4">
           <p className="text-[11px] text-text-muted">Total</p>
@@ -308,6 +310,79 @@ export default function AdminPage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+// Editor de los topes de las categorías de monotributo (valores de referencia).
+// Solo el admin de plataforma puede guardar (RPC security definer).
+function CategoriasMonotributoEditor() {
+  const [cats, setCats] = useState<{ categoria: string; limite_anual: number }[]>([]);
+  const [valores, setValores] = useState<Record<string, string>>({});
+  const [guardando, setGuardando] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+
+  const cargar = useCallback(async () => {
+    const { data } = await supabase
+      .from("monotributo_categorias")
+      .select("categoria, limite_anual")
+      .order("orden");
+    const lista = (data as { categoria: string; limite_anual: number }[]) ?? [];
+    setCats(lista);
+    setValores(Object.fromEntries(lista.map((c) => [c.categoria, String(c.limite_anual)])));
+  }, []);
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  async function guardar(cat: string) {
+    const limite = Number(valores[cat]);
+    if (!(limite > 0)) return;
+    setGuardando(cat);
+    setOk(null);
+    const { error } = await supabase.rpc("admin_editar_categoria_monotributo", {
+      p_categoria: cat,
+      p_limite: limite,
+    });
+    setGuardando(null);
+    if (!error) {
+      setOk(cat);
+      setTimeout(() => setOk(null), 1500);
+    }
+  }
+
+  return (
+    <details className="rounded-card border border-line bg-surface px-5 py-4">
+      <summary className="cursor-pointer text-[13px] font-medium text-text-secondary">
+        Topes de categorías de monotributo (referencia)
+      </summary>
+      <p className="mt-2 text-[11px] text-text-muted">
+        Cargá los montos anuales oficiales de AFIP. Estos valores alimentan la sección “Mi
+        Monotributo” de todos los clientes.
+      </p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {cats.map((c) => (
+          <div key={c.categoria} className="flex items-center gap-2">
+            <span className="w-6 shrink-0 text-[13px] font-semibold text-brand-hover">
+              {c.categoria}
+            </span>
+            <input
+              type="number"
+              value={valores[c.categoria] ?? ""}
+              onChange={(e) => setValores((v) => ({ ...v, [c.categoria]: e.target.value }))}
+              className="min-w-0 flex-1 rounded-btn border border-line bg-[#1A2235] px-2.5 py-1.5 text-[12px] tabular-nums"
+            />
+            <button
+              onClick={() => guardar(c.categoria)}
+              disabled={guardando === c.categoria}
+              className="shrink-0 rounded-btn bg-brand px-2.5 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-brand-hover disabled:opacity-50"
+            >
+              {ok === c.categoria ? "✓" : guardando === c.categoria ? "…" : "Guardar"}
+            </button>
+          </div>
+        ))}
+      </div>
+    </details>
   );
 }
 
