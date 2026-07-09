@@ -46,6 +46,17 @@ function permitirTlsLegacyDeArca() {
 // el generador de QR del comprobante, RG 4892)
 export const CODIGO_COMPROBANTE: Record<string, number> = { A: 1, B: 6, C: 11 };
 
+// Notas de crédito y débito por letra (WSFE)
+const CODIGO_NOTA_CREDITO: Record<string, number> = { A: 3, B: 8, C: 13 };
+const CODIGO_NOTA_DEBITO: Record<string, number> = { A: 2, B: 7, C: 12 };
+
+// Código de comprobante según la clase (factura / nota de crédito / débito).
+export function codigoComprobante(clase: string | null | undefined, tipo: string): number {
+  if (clase === "nota_credito") return CODIGO_NOTA_CREDITO[tipo] ?? CODIGO_NOTA_CREDITO.C;
+  if (clase === "nota_debito") return CODIGO_NOTA_DEBITO[tipo] ?? CODIGO_NOTA_DEBITO.C;
+  return CODIGO_COMPROBANTE[tipo] ?? CODIGO_COMPROBANTE.C;
+}
+
 // 80 = CUIT, 96 = DNI, 99 = consumidor final — usado en la emisión y en el QR
 export function docTipoYNro(cuitDni: string | null | undefined) {
   const limpio = (cuitDni ?? "").replace(/[^\d]/g, "");
@@ -415,7 +426,7 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
     // Reusar el TA cacheado (evita "ya posee un TA valido" en serverless).
     await precargarTA(admin, negocio.cuit);
 
-    const cbteTipo = CODIGO_COMPROBANTE[factura.tipo];
+    const cbteTipo = codigoComprobante(factura.clase, factura.tipo);
     const { docTipo, docNro } = docTipoYNro(factura.clientes?.cuit_dni);
 
     const esA = factura.tipo === "A";
@@ -430,7 +441,24 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
     await persistirTA(admin, negocio.cuit);
     const numeroAfip = Number(ultimo.CbteNro) + 1;
 
-    const resultado = await afip.electronicBillingService.createVoucher({
+    // Nota de crédito/débito: debe referenciar el comprobante que ajusta.
+    let cbtesAsoc: { Tipo: number; PtoVta: number; Nro: number }[] | undefined;
+    if (factura.clase !== "factura" && factura.comprobante_asociado_id) {
+      const { data: asoc } = await admin
+        .from("facturas")
+        .select("tipo, numero")
+        .eq("id", factura.comprobante_asociado_id)
+        .maybeSingle();
+      if (asoc) {
+        cbtesAsoc = [
+          { Tipo: CODIGO_COMPROBANTE[asoc.tipo] ?? cbteTipo, PtoVta: puntoVenta, Nro: asoc.numero },
+        ];
+      }
+    }
+
+    // CbtesAsoc no está tipado en IVoucher de afip.ts pero WSFE lo soporta;
+    // se arma el objeto aparte para no chocar con el chequeo de propiedades.
+    const voucher = {
       CantReg: 1,
       PtoVta: puntoVenta,
       CbteTipo: cbteTipo,
@@ -448,6 +476,7 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
       ImpTrib: 0,
       MonId: "PES",
       MonCotiz: 1,
+      ...(cbtesAsoc ? { CbtesAsoc: cbtesAsoc } : {}),
       ...(esA
         ? {
             Iva: [
@@ -455,7 +484,10 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
             ],
           }
         : {}),
-    });
+    };
+    const resultado = await afip.electronicBillingService.createVoucher(
+      voucher as Parameters<typeof afip.electronicBillingService.createVoucher>[0]
+    );
 
     if (!resultado.cae) {
       const detalle = JSON.stringify(resultado.response ?? {});

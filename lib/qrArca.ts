@@ -1,11 +1,12 @@
 import QRCode from "qrcode";
-import { CODIGO_COMPROBANTE, docTipoYNro } from "@/lib/arca";
+import { codigoComprobante, docTipoYNro } from "@/lib/arca";
 
 interface DatosQr {
   fecha: string; // YYYY-MM-DD
   cuitEmisor: string;
   puntoVenta: number;
   tipo: "A" | "B" | "C";
+  clase?: string | null; // factura / nota_credito / nota_debito
   numero: number;
   total: number;
   cuitDniReceptor?: string | null;
@@ -23,7 +24,7 @@ export async function generarQrArcaDataUrl(datos: DatosQr): Promise<string> {
     fecha: datos.fecha,
     cuit: Number(String(datos.cuitEmisor).replace(/[^\d]/g, "")),
     ptoVta: datos.puntoVenta,
-    tipoCmp: CODIGO_COMPROBANTE[datos.tipo],
+    tipoCmp: codigoComprobante(datos.clase, datos.tipo),
     nroCmp: datos.numero,
     importe: Number(datos.total),
     moneda: "PES",

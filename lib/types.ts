@@ -55,6 +55,8 @@ export interface Factura {
   iva: number;
   total: number;
   estado: EstadoFactura;
+  clase?: "factura" | "nota_credito" | "nota_debito";
+  comprobante_asociado_id?: string | null;
   origen: string;
   mp_payment_id: string | null;
   wa_enviado: boolean;
