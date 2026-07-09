@@ -14,7 +14,7 @@ import { formatoNumeroFactura, formatoPesos } from "@/lib/types";
 
 const RESEND_URL = "https://api.resend.com/emails";
 
-const SELECT_FACTURA = `tipo, numero, fecha, subtotal, iva, total, cae, cae_vencimiento, estado,
+const SELECT_FACTURA = `tipo, clase, numero, fecha, subtotal, iva, total, cae, cae_vencimiento, estado,
        email_enviado,
        clientes(nombre, cuit_dni, condicion_iva, email),
        negocios(nombre, razon_social, cuit, punto_venta, condicion_iva, domicilio, iibb, inicio_actividades, email_automatico),
@@ -104,6 +104,7 @@ export async function enviarComprobantePorEmail(
       cliente,
       {
         tipo: factura.tipo as "A" | "B" | "C",
+        clase: (factura as { clase?: string | null }).clase,
         numero: factura.numero,
         fecha: factura.fecha,
         subtotal: Number(factura.subtotal),

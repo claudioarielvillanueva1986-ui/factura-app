@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, MessageCircle, FileDown, CircleDollarSign, Circle } from "lucide-react";
+import {
+  Plus,
+  Search,
+  MessageCircle,
+  FileDown,
+  CircleDollarSign,
+  Circle,
+  FileMinus2,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { enviarPorWhatsApp } from "@/lib/whatsapp";
 import { Card } from "@/components/ui/Card";
@@ -89,6 +97,40 @@ export default function FacturasPage() {
       prev.map((x) => (x.id === f.id ? { ...x, cobrada: !x.cobrada } : x))
     );
     await supabase.from("facturas").update({ cobrada: !f.cobrada }).eq("id", f.id);
+  }
+
+  const [generando, setGenerando] = useState<string | null>(null);
+
+  // Genera una nota de crédito por el total de la factura y la emite en ARCA.
+  async function generarNotaCredito(f: Factura) {
+    if (
+      !confirm(
+        `¿Generar una nota de crédito por ${formatoPesos(f.total)} para anular esta factura? Se emite en ARCA con su propio CAE.`
+      )
+    )
+      return;
+    setGenerando(f.id);
+    try {
+      const { data: nota, error } = await supabase.rpc("crear_nota", {
+        p_factura_id: f.id,
+        p_clase: "nota_credito",
+      });
+      if (error) throw new Error(error.message);
+      const res = await fetch("/api/arca/emitir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ factura_id: (nota as Factura).id }),
+      });
+      const emision = await res.json();
+      if (!res.ok && !emision.pendiente) {
+        throw new Error(emision.error ?? "No se pudo emitir la nota de crédito");
+      }
+      cargar();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "No se pudo generar la nota de crédito");
+    } finally {
+      setGenerando(null);
+    }
   }
 
   // Resumen de cobranzas sobre los comprobantes emitidos.
@@ -179,7 +221,19 @@ export default function FacturasPage() {
               >
                 <Avatar nombre={nombre} auto={f.origen === "mercadopago"} />
                 <div className="min-w-0 flex-1 basis-36">
-                  <p className="truncate text-[13px] font-medium">{nombre}</p>
+                  <p className="flex items-center gap-1.5 truncate text-[13px] font-medium">
+                    {f.clase === "nota_credito" && (
+                      <span className="rounded bg-status-warn/15 px-1.5 py-0.5 text-[10px] font-semibold text-status-warn">
+                        NC
+                      </span>
+                    )}
+                    {f.clase === "nota_debito" && (
+                      <span className="rounded bg-accent-dim px-1.5 py-0.5 text-[10px] font-semibold text-accent-light">
+                        ND
+                      </span>
+                    )}
+                    {nombre}
+                  </p>
                   <p className="truncate text-[11px] text-text-muted">
                     {formatoNumeroFactura(f.tipo, f.numero, negocio?.punto_venta ?? 1)}
                     {" · "}
@@ -226,6 +280,16 @@ export default function FacturasPage() {
                       className="inline-flex h-8 w-8 items-center justify-center rounded-btn bg-whatsapp text-[#052e16] transition-all hover:brightness-110"
                     >
                       <MessageCircle size={15} />
+                    </button>
+                  )}
+                  {tieneCae && (f.clase ?? "factura") === "factura" && (
+                    <button
+                      onClick={() => generarNotaCredito(f)}
+                      disabled={generando === f.id}
+                      title="Generar nota de crédito (anular)"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-btn border border-line text-text-secondary transition-colors hover:text-status-warn disabled:opacity-50"
+                    >
+                      <FileMinus2 size={15} />
                     </button>
                   )}
                 </div>

@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { generarQrArcaDataUrl } from "@/lib/qrArca";
+import { codigoComprobante } from "@/lib/arca";
 import { formatoNumeroFactura, formatoPesos } from "@/lib/types";
 
 export interface NegocioPdf {
@@ -21,6 +22,7 @@ export interface ClientePdf {
 
 export interface FacturaPdf {
   tipo: "A" | "B" | "C";
+  clase?: string | null; // factura / nota_credito / nota_debito
   numero: number;
   fecha: string;
   subtotal: number;
@@ -136,7 +138,7 @@ export async function generarPdfFactura(
     font: fontBold,
     color: NEGRO,
   });
-  const codigo = { A: "01", B: "06", C: "11" }[factura.tipo];
+  const codigo = String(codigoComprobante(factura.clase, factura.tipo)).padStart(2, "0");
   page.drawText(`Cód. ${codigo}`, {
     x: cajaLetraX - 2,
     y: y - 46,
@@ -145,7 +147,13 @@ export async function generarPdfFactura(
     color: GRIS,
   });
 
-  page.drawText("FACTURA", { x: M, y: y - 4, size: 18, font: fontBold, color: NEGRO });
+  const titulo =
+    factura.clase === "nota_credito"
+      ? "NOTA DE CRÉDITO"
+      : factura.clase === "nota_debito"
+        ? "NOTA DE DÉBITO"
+        : "FACTURA";
+  page.drawText(titulo, { x: M, y: y - 4, size: 18, font: fontBold, color: NEGRO });
   page.drawText(negocio.nombre, { x: M, y: y - 22, size: 10, font: fontRegular, color: GRIS });
 
   const numeroFmt = formatoNumeroFactura(factura.tipo, factura.numero, negocio.punto_venta);
@@ -318,6 +326,7 @@ export async function generarPdfFactura(
     cuitEmisor: negocio.cuit ?? "",
     puntoVenta: negocio.punto_venta,
     tipo: factura.tipo,
+    clase: factura.clase,
     numero: factura.numero,
     total: factura.total,
     cuitDniReceptor: cliente?.cuit_dni,

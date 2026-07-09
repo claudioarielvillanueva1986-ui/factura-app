@@ -6,7 +6,7 @@ import { formatoNumeroFactura } from "@/lib/types";
 
 export const runtime = "nodejs";
 
-const SELECT_FACTURA = `tipo, numero, fecha, subtotal, iva, total, cae, cae_vencimiento, estado, negocio_id,
+const SELECT_FACTURA = `tipo, clase, numero, fecha, subtotal, iva, total, cae, cae_vencimiento, estado, negocio_id,
        clientes(nombre, cuit_dni, condicion_iva),
        negocios(nombre, razon_social, cuit, punto_venta, condicion_iva, domicilio, iibb, inicio_actividades),
        factura_items(descripcion, cantidad, precio_unitario, subtotal)`;
@@ -61,6 +61,7 @@ export async function GET(
     cliente,
     {
       tipo: factura.tipo as "A" | "B" | "C",
+      clase: (factura as { clase?: string | null }).clase,
       numero: factura.numero,
       fecha: factura.fecha,
       subtotal: Number(factura.subtotal),
