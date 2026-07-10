@@ -220,6 +220,16 @@ function rutaTA(cuit: string) {
   return join("/tmp", `TA-${cuitNumerico(cuit)}-wsfe${prod ? "-production" : ""}.json`);
 }
 
+// El caché de TA compartido (arca_ta_cache) es SOLO para el modo delegado:
+// todos los negocios usan el MISMO certificado de la plataforma, así que
+// comparten un único TA. En 'certificado_propio' cada negocio tiene su propio
+// certificado; compartir el TA le pisaría el token con el de otro certificado
+// y AFIP rechazaría con "no aparece en lista de relaciones". Por eso en ese
+// modo dejamos que afip.ts maneje su propio TA por CUIT en /tmp.
+function usaCacheTaCompartido(arcaModo: string | null | undefined) {
+  return arcaModo !== "certificado_propio";
+}
+
 // Escribe en /tmp el TA cacheado en la base (si sigue vigente) para que
 // afip.ts lo reuse en vez de pedir uno nuevo a WSAA.
 async function precargarTA(admin: AdminClient, cuit: string) {
@@ -329,7 +339,8 @@ export async function probarConexionARCA(negocioId: string): Promise<ResultadoPr
 
   try {
     const afip = clienteAfip(cred.keyPem, cred.certPem, cuit);
-    await precargarTA(admin, cuit);
+    const cacheTA = usaCacheTaCompartido(negocio.arca_modo);
+    if (cacheTA) await precargarTA(admin, cuit);
     const puntoVenta = negocio.punto_venta ?? 1;
     const tipoPrueba =
       negocio.condicion_iva === "monotributo"
@@ -342,7 +353,7 @@ export async function probarConexionARCA(negocioId: string): Promise<ResultadoPr
       puntoVenta,
       tipoPrueba
     );
-    await persistirTA(admin, cuit);
+    if (cacheTA) await persistirTA(admin, cuit);
 
     await admin
       .from("negocios")
@@ -424,7 +435,9 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
   try {
     const afip = clienteAfip(cred.keyPem, cred.certPem, negocio.cuit);
     // Reusar el TA cacheado (evita "ya posee un TA valido" en serverless).
-    await precargarTA(admin, negocio.cuit);
+    // Solo en modo delegado: en certificado_propio cada negocio tiene su cert.
+    const cacheTA = usaCacheTaCompartido(negocio.arca_modo);
+    if (cacheTA) await precargarTA(admin, negocio.cuit);
 
     const cbteTipo = codigoComprobante(factura.clase, factura.tipo);
     const { docTipo, docNro } = docTipoYNro(factura.clientes?.cuit_dni);
@@ -438,7 +451,7 @@ export async function emitirFacturaARCA(facturaId: string): Promise<ResultadoEmi
     const puntoVenta = negocio.punto_venta ?? 1;
     const ultimo = await afip.electronicBillingService.getLastVoucher(puntoVenta, cbteTipo);
     // Recién ahora afip.ts hizo el login WSAA: guardamos el TA para compartirlo.
-    await persistirTA(admin, negocio.cuit);
+    if (cacheTA) await persistirTA(admin, negocio.cuit);
     const numeroAfip = Number(ultimo.CbteNro) + 1;
 
     // Nota de crédito/débito: debe referenciar el comprobante que ajusta.
