@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/useAuth";
 import { useEsAdminPlataforma } from "@/lib/useEsAdminPlataforma";
 import { Logo } from "@/components/ui/Logo";
 import { Splash } from "@/components/ui/Splash";
+import { InstalarApp } from "@/components/InstalarApp";
 
 const NAV = [
   { href: "/", label: "Dashboard", corto: "Inicio", icon: LayoutDashboard },
@@ -40,7 +41,7 @@ export default function DashboardLayout({
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-[100svh]">
       {/* Fondo ambiente detrás de todo */}
       <div className="bg-ambient" aria-hidden />
 
@@ -133,6 +134,8 @@ export default function DashboardLayout({
       <main className="px-4 pb-24 pt-5 md:ml-[200px] md:px-8 md:pb-8 md:pt-7">
         {children}
       </main>
+
+      <InstalarApp />
 
       {/* ---------- Bottom nav (mobile) ---------- */}
       <nav
