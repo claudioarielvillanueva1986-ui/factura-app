@@ -181,7 +181,7 @@ export function WizardDelegacion() {
           <strong>CUIT y tu Clave Fiscal</strong>.
         </p>
         <div className="flex items-center gap-2 pt-1">
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
             <div
               className="h-full rounded-full bg-brand transition-all"
               style={{ width: `${(completados / TOTAL_PASOS) * 100}%` }}
@@ -222,7 +222,7 @@ export function WizardDelegacion() {
           tocá el botón <strong>“Nueva Relación”</strong>.
         </p>
         <MockPantalla titulo="ARCA — Portal">
-          <div className="flex items-center gap-2 rounded-btn border border-line bg-black/30 px-3 py-1.5 text-[11px] text-text-muted">
+          <div className="flex items-center gap-2 rounded-btn border border-line bg-slate-100 px-3 py-1.5 text-[11px] text-text-muted">
             🔍 administrador de relaciones de clave fiscal
           </div>
           <div className="mt-2 rounded-btn bg-brand/20 px-3 py-1.5 text-[11px] text-brand-hover">
@@ -244,9 +244,9 @@ export function WizardDelegacion() {
           En “Nueva Relación” → <strong>Buscar</strong>, navegá este camino y seleccioná:
         </p>
         <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
-          <span className="rounded-btn bg-[#1A2235] px-2.5 py-1">ARCA</span>
+          <span className="rounded-btn bg-surface-2 px-2.5 py-1">ARCA</span>
           <span className="text-text-muted">→</span>
-          <span className="rounded-btn bg-[#1A2235] px-2.5 py-1">WebServices</span>
+          <span className="rounded-btn bg-surface-2 px-2.5 py-1">WebServices</span>
           <span className="text-text-muted">→</span>
           <span className="rounded-btn bg-brand-dim px-2.5 py-1 font-medium text-brand-hover">
             Facturación Electrónica
@@ -290,13 +290,13 @@ export function WizardDelegacion() {
             </div>
             <div className="flex items-center gap-2">
               <span className="w-12 text-text-muted">CUIT</span>
-              <span className="rounded border border-line bg-black/30 px-2 py-0.5 tabular-nums">
+              <span className="rounded border border-line bg-slate-100 px-2 py-0.5 tabular-nums">
                 {CUIT_PLATAFORMA || "———"}
               </span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-12 text-text-muted">Alias</span>
-              <span className="rounded border border-line bg-black/30 px-2 py-0.5">
+              <span className="rounded border border-line bg-slate-100 px-2 py-0.5">
                 {ALIAS_PLATAFORMA}
               </span>
             </div>
@@ -344,7 +344,7 @@ export function WizardDelegacion() {
             value={puntoVenta}
             onChange={(e) => setPuntoVenta(e.target.value)}
             placeholder="N°"
-            className="w-24 rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px] tabular-nums"
+            className="w-24 rounded-btn border border-line bg-surface-2 px-3 py-2 text-[13px] tabular-nums"
           />
           <Button type="button" variant="ghost" onClick={guardarPuntoVenta}>
             {pvGuardado ? <Check size={14} /> : null}
@@ -432,7 +432,7 @@ function Paso({
           className={`rounded-full px-2.5 py-1 text-[11px] transition-colors ${
             hecho
               ? "bg-status-ok/15 text-status-ok"
-              : "bg-white/5 text-text-muted hover:text-text-secondary"
+              : "bg-slate-100 text-text-muted hover:text-text-secondary"
           }`}
         >
           {hecho ? "✓ Hecho" : "Marcar hecho"}
@@ -467,7 +467,7 @@ function ChipCopiable({ etiqueta, valor }: { etiqueta: string; valor: string }) 
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-btn border border-line bg-[#1A2235] px-3 py-2">
+    <div className="flex items-center gap-2 rounded-btn border border-line bg-surface-2 px-3 py-2">
       <div className="min-w-0 flex-1">
         <p className="text-[10px] uppercase tracking-wide text-text-muted">{etiqueta}</p>
         <p className="truncate text-[13px] font-semibold text-accent-light">
@@ -478,7 +478,7 @@ function ChipCopiable({ etiqueta, valor }: { etiqueta: string; valor: string }) 
         type="button"
         onClick={copiar}
         disabled={!valor}
-        className="rounded-btn bg-white/5 p-2 text-text-secondary transition-colors hover:bg-white/10 hover:text-text-primary disabled:opacity-40"
+        className="rounded-btn bg-slate-100 p-2 text-text-secondary transition-colors hover:bg-slate-100 hover:text-text-primary disabled:opacity-40"
         title="Copiar"
       >
         {copiado ? <Check size={14} className="text-status-ok" /> : <Copy size={14} />}
@@ -498,15 +498,15 @@ function MockPantalla({
 }) {
   return (
     <div className="overflow-hidden rounded-btn border border-line">
-      <div className="flex items-center gap-1.5 border-b border-line bg-black/30 px-3 py-1.5">
-        <span className="h-2 w-2 rounded-full bg-white/15" />
-        <span className="h-2 w-2 rounded-full bg-white/15" />
+      <div className="flex items-center gap-1.5 border-b border-line bg-slate-100 px-3 py-1.5">
+        <span className="h-2 w-2 rounded-full bg-slate-300" />
+        <span className="h-2 w-2 rounded-full bg-slate-300" />
         <span className="ml-2 text-[10px] text-text-muted">{titulo}</span>
-        <span className="ml-auto rounded bg-white/5 px-1.5 py-0.5 text-[9px] text-text-muted">
+        <span className="ml-auto rounded bg-slate-100 px-1.5 py-0.5 text-[9px] text-text-muted">
           referencia
         </span>
       </div>
-      <div className="bg-black/10 p-3">{children}</div>
+      <div className="bg-slate-50 p-3">{children}</div>
     </div>
   );
 }

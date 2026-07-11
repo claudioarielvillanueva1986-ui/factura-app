@@ -157,7 +157,7 @@ export default function MonotributoPage() {
 
             {limite != null ? (
               <div className="space-y-2">
-                <div className="h-3 w-full overflow-hidden rounded-full bg-white/10">
+                <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200">
                   <div
                     className={`h-full rounded-full transition-all duration-700 ${
                       seExcede
@@ -193,7 +193,7 @@ export default function MonotributoPage() {
                 )}
               </div>
             ) : (
-              <div className="rounded-btn border border-line bg-[#1A2235] p-3">
+              <div className="rounded-btn border border-line bg-surface-2 p-3">
                 <p className="mb-2 text-[12px] text-text-secondary">
                   Elegí tu categoría de monotributo para ver cuánto te queda de margen:
                 </p>
@@ -319,7 +319,7 @@ export default function MonotributoPage() {
                 return (
                   <div
                     key={v.titulo}
-                    className="flex items-center gap-3 rounded-btn bg-white/[0.03] px-3 py-2.5"
+                    className="flex items-center gap-3 rounded-btn bg-slate-50 px-3 py-2.5"
                   >
                     <span
                       className={`flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-btn ${
@@ -339,7 +339,7 @@ export default function MonotributoPage() {
                       className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${
                         urgente
                           ? "bg-status-warn/15 text-status-warn"
-                          : "bg-white/5 text-text-secondary"
+                          : "bg-slate-100 text-text-secondary"
                       }`}
                     >
                       {dias === 0 ? "¡hoy!" : dias === 1 ? "mañana" : `en ${dias} días`}
@@ -406,13 +406,13 @@ export default function MonotributoPage() {
               </Link>
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-btn bg-white/5 px-2 py-2.5">
+              <div className="rounded-btn bg-slate-100 px-2 py-2.5">
                 <p className="text-[10px] uppercase tracking-wide text-text-muted">Ingresos</p>
                 <p className="mt-0.5 text-[14px] font-semibold tabular-nums text-status-ok">
                   {formatoPesosCorto(facturado)}
                 </p>
               </div>
-              <div className="rounded-btn bg-white/5 px-2 py-2.5">
+              <div className="rounded-btn bg-slate-100 px-2 py-2.5">
                 <p className="text-[10px] uppercase tracking-wide text-text-muted">Egresos</p>
                 <p className="mt-0.5 text-[14px] font-semibold tabular-nums text-status-warn">
                   {formatoPesosCorto(egresos12m)}
@@ -535,7 +535,7 @@ function SelectorCategoria({
       value={valor}
       disabled={guardando}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px] disabled:opacity-50"
+      className="w-full rounded-btn border border-line bg-surface-2 px-3 py-2 text-[13px] disabled:opacity-50"
     >
       <option value="">Elegí tu categoría…</option>
       {cats.map((c) => (

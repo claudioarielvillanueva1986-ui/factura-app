@@ -28,6 +28,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { EstadoBadge } from "@/components/ui/EstadoBadge";
 import { Contador } from "@/components/ui/Contador";
 import { Skeleton, SkeletonLista, SkeletonGrafico } from "@/components/ui/Skeleton";
+import { ResumenMonotributo } from "@/components/ResumenMonotributo";
 import { formatoPesos, formatoNumeroFactura, type ResumenDashboard } from "@/lib/types";
 
 const entero = (n: number) => String(Math.round(n));
@@ -90,6 +91,9 @@ export default function DashboardPage() {
 
       <AlertasMonotributo />
 
+      {/* Barra grande "Saldo a facturar" — al estilo del resumen de la competencia */}
+      <ResumenMonotributo />
+
       {/* Stats 2x2 en mobile, 4 columnas en desktop */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats.map(({ label, raw, format, sub, icon: Icon, color }, i) => (
@@ -148,23 +152,23 @@ export default function DashboardPage() {
             <BarChart data={resumen?.semana ?? []} barGap={2}>
               <defs>
                 <linearGradient id="gradManual" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#8B5CF6" />
-                  <stop offset="100%" stopColor="#7C3AED" stopOpacity={0.55} />
+                  <stop offset="0%" stopColor="#3B82F6" />
+                  <stop offset="100%" stopColor="#2563EB" stopOpacity={0.75} />
                 </linearGradient>
                 <linearGradient id="gradAuto" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#5EEAD4" />
-                  <stop offset="100%" stopColor="#14B8A6" stopOpacity={0.55} />
+                  <stop offset="0%" stopColor="#34D399" />
+                  <stop offset="100%" stopColor="#10B981" stopOpacity={0.75} />
                 </linearGradient>
               </defs>
-              <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <CartesianGrid stroke="rgba(15,23,42,0.07)" vertical={false} />
               <XAxis
                 dataKey="dia"
-                tick={{ fill: "#64748B", fontSize: 11 }}
+                tick={{ fill: "#94A3B8", fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fill: "#64748B", fontSize: 11 }}
+                tick={{ fill: "#94A3B8", fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
                 width={70}
@@ -173,14 +177,15 @@ export default function DashboardPage() {
                 }
               />
               <Tooltip
-                cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                cursor={{ fill: "rgba(15,23,42,0.04)" }}
                 contentStyle={{
-                  background: "#1A2235",
-                  border: "1px solid rgba(255,255,255,0.07)",
+                  background: "#FFFFFF",
+                  border: "1px solid rgba(15,23,42,0.10)",
                   borderRadius: 8,
                   fontSize: 12,
+                  boxShadow: "0 8px 24px -12px rgba(15,23,42,0.25)",
                 }}
-                labelStyle={{ color: "#94A3B8" }}
+                labelStyle={{ color: "#475569" }}
                 formatter={(value, name) => [
                   formatoPesos(Number(value)),
                   name === "manual" ? "Manual" : "Auto MP",
@@ -213,7 +218,7 @@ export default function DashboardPage() {
             <Link
               key={f.id}
               href="/facturas"
-              className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.03] sm:px-5"
+              className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-50 sm:px-5"
             >
               <Avatar nombre={f.cliente_nombre} auto={f.origen === "mercadopago"} />
               <div className="min-w-0 flex-1">

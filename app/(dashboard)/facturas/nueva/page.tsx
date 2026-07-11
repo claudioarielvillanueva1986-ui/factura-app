@@ -195,7 +195,7 @@ export default function NuevaFacturaPage() {
               · {formatoPesos(exito.factura.total)}
             </p>
           </div>
-          <div className="rounded-btn bg-[#1A2235] px-4 py-3">
+          <div className="rounded-btn bg-surface-2 px-4 py-3">
             <p className="text-[11px] uppercase tracking-wide text-text-muted">CAE</p>
             <p className="text-[15px] font-semibold tabular-nums">{exito.cae}</p>
           </div>
@@ -268,7 +268,7 @@ export default function NuevaFacturaPage() {
                 className={`h-10 w-10 rounded-btn text-[14px] font-semibold transition-colors ${
                   tipo === t
                     ? "bg-brand text-white"
-                    : "border border-line bg-[#1A2235] text-text-secondary hover:text-text-primary"
+                    : "border border-line bg-surface-2 text-text-secondary hover:text-text-primary"
                 }`}
               >
                 {t}
@@ -306,7 +306,7 @@ export default function NuevaFacturaPage() {
                 placeholder="Descripción"
                 value={it.descripcion}
                 onChange={(e) => setItem(i, "descripcion", e.target.value)}
-                className="min-w-[160px] flex-1 rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px] placeholder:text-text-muted"
+                className="min-w-[160px] flex-1 rounded-btn border border-line bg-surface-2 px-3 py-2 text-[13px] placeholder:text-text-muted"
               />
               <input
                 type="number"
@@ -315,7 +315,7 @@ export default function NuevaFacturaPage() {
                 placeholder="Cant."
                 value={it.cantidad}
                 onChange={(e) => setItem(i, "cantidad", e.target.value)}
-                className="w-[70px] rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px] tabular-nums placeholder:text-text-muted"
+                className="w-[70px] rounded-btn border border-line bg-surface-2 px-3 py-2 text-[13px] tabular-nums placeholder:text-text-muted"
               />
               <input
                 type="number"
@@ -324,7 +324,7 @@ export default function NuevaFacturaPage() {
                 placeholder="Precio"
                 value={it.precio_unitario}
                 onChange={(e) => setItem(i, "precio_unitario", e.target.value)}
-                className="w-[110px] rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px] tabular-nums placeholder:text-text-muted"
+                className="w-[110px] rounded-btn border border-line bg-surface-2 px-3 py-2 text-[13px] tabular-nums placeholder:text-text-muted"
               />
               <button
                 type="button"

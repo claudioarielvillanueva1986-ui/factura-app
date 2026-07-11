@@ -142,7 +142,7 @@ export default async function AutorizarPage({ searchParams }: Props) {
           Negocio: <strong className="text-text-primary">{negocio?.razon_social || negocio?.nombre}</strong>
         </p>
 
-        <div className="mt-5 rounded-card border border-line bg-[#1A2235] p-4">
+        <div className="mt-5 rounded-card border border-line bg-surface-2 p-4">
           <p className="mb-3 text-[12px] font-medium uppercase tracking-wide text-text-secondary">
             Vas a permitir que {app.nombre} pueda:
           </p>

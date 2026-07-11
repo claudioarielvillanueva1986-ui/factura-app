@@ -88,14 +88,14 @@ export default function ClientesPage() {
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
           placeholder="Nombre, CUIT o email…"
-          className="w-full rounded-btn border border-line bg-[#1A2235] py-2 pl-8 pr-3 text-[13px] placeholder:text-text-muted"
+          className="w-full rounded-btn border border-line bg-surface-2 py-2 pl-8 pr-3 text-[13px] placeholder:text-text-muted"
         />
       </div>
 
       <Card glass className="animate-fade-up p-0" style={{ animationDelay: "120ms" }}>
         <div className="divide-y divide-line">
           {visibles.map((c) => (
-            <div key={c.id} className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-white/[0.03]">
+            <div key={c.id} className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-slate-50">
               <Avatar nombre={c.nombre} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-medium">{c.nombre}</p>
@@ -104,7 +104,7 @@ export default function ClientesPage() {
                     "Sin datos de contacto"}
                 </p>
               </div>
-              <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] text-text-secondary">
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] text-text-secondary">
                 {c.condicion_iva.replaceAll("_", " ")}
               </span>
             </div>
