@@ -316,19 +316,26 @@ export default function AdminPage() {
 // Editor de los topes de las categorías de monotributo (valores de referencia).
 // Solo el admin de plataforma puede guardar (RPC security definer).
 function CategoriasMonotributoEditor() {
-  const [cats, setCats] = useState<{ categoria: string; limite_anual: number }[]>([]);
-  const [valores, setValores] = useState<Record<string, string>>({});
+  const [cats, setCats] = useState<
+    { categoria: string; limite_anual: number; cuota_mensual: number | null }[]
+  >([]);
+  const [limites, setLimites] = useState<Record<string, string>>({});
+  const [cuotas, setCuotas] = useState<Record<string, string>>({});
   const [guardando, setGuardando] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     const { data } = await supabase
       .from("monotributo_categorias")
-      .select("categoria, limite_anual")
+      .select("categoria, limite_anual, cuota_mensual")
       .order("orden");
-    const lista = (data as { categoria: string; limite_anual: number }[]) ?? [];
+    const lista =
+      (data as { categoria: string; limite_anual: number; cuota_mensual: number | null }[]) ?? [];
     setCats(lista);
-    setValores(Object.fromEntries(lista.map((c) => [c.categoria, String(c.limite_anual)])));
+    setLimites(Object.fromEntries(lista.map((c) => [c.categoria, String(c.limite_anual)])));
+    setCuotas(
+      Object.fromEntries(lista.map((c) => [c.categoria, c.cuota_mensual != null ? String(c.cuota_mensual) : ""]))
+    );
   }, []);
 
   useEffect(() => {
@@ -336,13 +343,15 @@ function CategoriasMonotributoEditor() {
   }, [cargar]);
 
   async function guardar(cat: string) {
-    const limite = Number(valores[cat]);
+    const limite = Number(limites[cat]);
     if (!(limite > 0)) return;
+    const cuota = cuotas[cat] ? Number(cuotas[cat]) : null;
     setGuardando(cat);
     setOk(null);
     const { error } = await supabase.rpc("admin_editar_categoria_monotributo", {
       p_categoria: cat,
       p_limite: limite,
+      p_cuota: cuota,
     });
     setGuardando(null);
     if (!error) {
@@ -357,19 +366,34 @@ function CategoriasMonotributoEditor() {
         Topes de categorías de monotributo (referencia)
       </summary>
       <p className="mt-2 text-[11px] text-text-muted">
-        Cargá los montos anuales oficiales de AFIP. Estos valores alimentan la sección “Mi
-        Monotributo” de todos los clientes.
+        Cargá los montos oficiales de AFIP: el <strong>tope anual</strong> de facturación y la{" "}
+        <strong>cuota mensual</strong> de cada categoría. Alimentan la sección “Mi Monotributo”
+        de todos los clientes.
       </p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <div className="mt-3 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-[10px] uppercase tracking-wide text-text-muted sm:grid-cols-[auto_1fr_1fr_auto]">
+        <span className="hidden sm:block">Cat</span>
+        <span className="hidden sm:block">Tope anual</span>
+        <span className="hidden sm:block">Cuota mensual</span>
+        <span />
+      </div>
+      <div className="mt-1 space-y-2">
         {cats.map((c) => (
-          <div key={c.categoria} className="flex items-center gap-2">
+          <div key={c.categoria} className="flex flex-wrap items-center gap-2">
             <span className="w-6 shrink-0 text-[13px] font-semibold text-brand-hover">
               {c.categoria}
             </span>
             <input
               type="number"
-              value={valores[c.categoria] ?? ""}
-              onChange={(e) => setValores((v) => ({ ...v, [c.categoria]: e.target.value }))}
+              placeholder="tope anual"
+              value={limites[c.categoria] ?? ""}
+              onChange={(e) => setLimites((v) => ({ ...v, [c.categoria]: e.target.value }))}
+              className="min-w-0 flex-1 rounded-btn border border-line bg-[#1A2235] px-2.5 py-1.5 text-[12px] tabular-nums"
+            />
+            <input
+              type="number"
+              placeholder="cuota mensual"
+              value={cuotas[c.categoria] ?? ""}
+              onChange={(e) => setCuotas((v) => ({ ...v, [c.categoria]: e.target.value }))}
               className="min-w-0 flex-1 rounded-btn border border-line bg-[#1A2235] px-2.5 py-1.5 text-[12px] tabular-nums"
             />
             <button
