@@ -9,6 +9,7 @@ import {
   Info,
   ArrowRight,
   CalendarClock,
+  CreditCard,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/useAuth";
@@ -208,16 +209,27 @@ export default function MonotributoPage() {
 
           {/* ---------- Cuota mensual ---------- */}
           {cuotaMes != null && (
-            <Card glass className="animate-fade-up flex items-center justify-between" style={{ animationDelay: "60ms" }}>
-              <div>
-                <p className="text-[12px] text-text-secondary">Tu cuota de este mes</p>
-                <p className="mt-0.5 text-[22px] font-semibold tabular-nums">
-                  {formatoPesos(cuotaMes)}
-                </p>
+            <Card glass className="animate-fade-up space-y-3" style={{ animationDelay: "60ms" }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[12px] text-text-secondary">Tu cuota de este mes</p>
+                  <p className="mt-0.5 text-[22px] font-semibold tabular-nums">
+                    {formatoPesos(cuotaMes)}
+                  </p>
+                </div>
+                <span className="rounded-full bg-brand-dim px-3 py-1 text-[11px] font-medium text-brand-hover">
+                  Vence el 20
+                </span>
               </div>
-              <span className="rounded-full bg-brand-dim px-3 py-1 text-[11px] font-medium text-brand-hover">
-                Vence el 20
-              </span>
+              <a
+                href="https://monotributo.afip.gob.ar/"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-btn bg-brand px-4 py-2.5 text-[13px] font-medium text-white transition-colors hover:bg-brand-hover sm:w-auto"
+              >
+                <CreditCard size={15} />
+                Pagar en AFIP
+              </a>
             </Card>
           )}
 

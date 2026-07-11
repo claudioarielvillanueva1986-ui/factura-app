@@ -10,7 +10,9 @@ import {
   CircleDollarSign,
   Circle,
   FileMinus2,
+  Download,
 } from "lucide-react";
+import { descargarCSV } from "@/lib/csv";
 import { supabase } from "@/lib/supabase";
 import { enviarPorWhatsApp } from "@/lib/whatsapp";
 import { Card } from "@/components/ui/Card";
@@ -100,20 +102,22 @@ export default function FacturasPage() {
   }
 
   const [generando, setGenerando] = useState<string | null>(null);
+  const [notaModal, setNotaModal] = useState<Factura | null>(null);
+  const [notaParcial, setNotaParcial] = useState(false);
+  const [notaMonto, setNotaMonto] = useState("");
 
-  // Genera una nota de crédito por el total de la factura y la emite en ARCA.
-  async function generarNotaCredito(f: Factura) {
-    if (
-      !confirm(
-        `¿Generar una nota de crédito por ${formatoPesos(f.total)} para anular esta factura? Se emite en ARCA con su propio CAE.`
-      )
-    )
-      return;
+  // Genera una nota de crédito (total o parcial) y la emite en ARCA.
+  async function generarNotaCredito(f: Factura, monto: number | null) {
     setGenerando(f.id);
     try {
+      const items =
+        monto != null
+          ? [{ descripcion: "Nota de crédito", cantidad: 1, precio_unitario: monto }]
+          : null;
       const { data: nota, error } = await supabase.rpc("crear_nota", {
         p_factura_id: f.id,
         p_clase: "nota_credito",
+        p_items: items,
       });
       if (error) throw new Error(error.message);
       const res = await fetch("/api/arca/emitir", {
@@ -125,12 +129,35 @@ export default function FacturasPage() {
       if (!res.ok && !emision.pendiente) {
         throw new Error(emision.error ?? "No se pudo emitir la nota de crédito");
       }
+      setNotaModal(null);
       cargar();
     } catch (err) {
       alert(err instanceof Error ? err.message : "No se pudo generar la nota de crédito");
     } finally {
       setGenerando(null);
     }
+  }
+
+  function exportar() {
+    const pv = negocio?.punto_venta ?? 1;
+    const filas = visibles.map((f) => [
+      new Date(`${f.fecha}T00:00:00`).toLocaleDateString("es-AR"),
+      f.clase === "nota_credito" ? "Nota de crédito" : f.clase === "nota_debito" ? "Nota de débito" : "Factura",
+      formatoNumeroFactura(f.tipo, f.numero, pv),
+      f.clientes?.nombre ?? "Consumidor Final",
+      f.clientes?.cuit_dni ?? "",
+      Number(f.subtotal),
+      Number(f.iva),
+      Number(f.total),
+      f.cae ?? "",
+      f.estado,
+      f.cobrada ? "Sí" : "No",
+    ]);
+    descargarCSV(
+      `facturas-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["Fecha", "Tipo", "Comprobante", "Cliente", "CUIT/DNI", "Neto", "IVA", "Total", "CAE", "Estado", "Cobrada"],
+      filas
+    );
   }
 
   // Resumen de cobranzas sobre los comprobantes emitidos.
@@ -145,13 +172,23 @@ export default function FacturasPage() {
     <div className="mx-auto max-w-5xl space-y-5">
       <header className="flex animate-fade-up items-center justify-between">
         <h1 className="text-[15px] font-semibold">Facturas</h1>
-        <Link
-          href="/facturas/nueva"
-          className="btn-sheen inline-flex items-center gap-1.5 rounded-btn px-4 py-2 text-[13px] font-medium text-white transition-all active:scale-[0.97]"
-        >
-          <Plus size={15} />
-          Nueva factura
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportar}
+            title="Exportar a CSV (para el contador)"
+            className="inline-flex items-center gap-1.5 rounded-btn border border-line bg-surface px-3 py-2 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+          >
+            <Download size={15} />
+            <span className="hidden sm:inline">Exportar</span>
+          </button>
+          <Link
+            href="/facturas/nueva"
+            className="btn-sheen inline-flex items-center gap-1.5 rounded-btn px-4 py-2 text-[13px] font-medium text-white transition-all active:scale-[0.97]"
+          >
+            <Plus size={15} />
+            Nueva factura
+          </Link>
+        </div>
       </header>
 
       {/* Resumen de cobranzas */}
@@ -284,9 +321,13 @@ export default function FacturasPage() {
                   )}
                   {tieneCae && (f.clase ?? "factura") === "factura" && (
                     <button
-                      onClick={() => generarNotaCredito(f)}
+                      onClick={() => {
+                        setNotaModal(f);
+                        setNotaParcial(false);
+                        setNotaMonto("");
+                      }}
                       disabled={generando === f.id}
-                      title="Generar nota de crédito (anular)"
+                      title="Generar nota de crédito"
                       className="inline-flex h-8 w-8 items-center justify-center rounded-btn border border-line text-text-secondary transition-colors hover:text-status-warn disabled:opacity-50"
                     >
                       <FileMinus2 size={15} />
@@ -304,6 +345,85 @@ export default function FacturasPage() {
           )}
         </div>
       </Card>
+
+      {/* Modal: nota de crédito total o parcial */}
+      {notaModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center"
+          onClick={() => generando === null && setNotaModal(null)}
+        >
+          <div
+            className="surface-ring card-glass w-full max-w-sm rounded-card border border-line/60 p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-[15px] font-semibold">Nota de crédito</h2>
+            <p className="mt-1 text-[12px] text-text-secondary">
+              Sobre {formatoNumeroFactura(notaModal.tipo, notaModal.numero, negocio?.punto_venta ?? 1)}{" "}
+              · Total {formatoPesos(notaModal.total)}
+            </p>
+
+            <div className="mt-4 space-y-2">
+              <label className="flex cursor-pointer items-center gap-2.5 rounded-btn border border-line bg-[#1A2235] px-3 py-2.5">
+                <input
+                  type="radio"
+                  checked={!notaParcial}
+                  onChange={() => setNotaParcial(false)}
+                  className="accent-brand"
+                />
+                <span className="text-[13px]">
+                  Anular total <span className="text-text-muted">({formatoPesos(notaModal.total)})</span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2.5 rounded-btn border border-line bg-[#1A2235] px-3 py-2.5">
+                <input
+                  type="radio"
+                  checked={notaParcial}
+                  onChange={() => setNotaParcial(true)}
+                  className="accent-brand"
+                />
+                <span className="text-[13px]">Crédito parcial</span>
+              </label>
+              {notaParcial && (
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  autoFocus
+                  placeholder="Monto a acreditar"
+                  value={notaMonto}
+                  onChange={(e) => setNotaMonto(e.target.value)}
+                  className="w-full rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px] tabular-nums"
+                />
+              )}
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setNotaModal(null)}
+                disabled={generando !== null}
+                className="rounded-btn px-3 py-2 text-[13px] text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const monto = notaParcial ? parseFloat(notaMonto) : null;
+                  if (notaParcial && !(monto! > 0 && monto! <= Number(notaModal.total))) return;
+                  generarNotaCredito(notaModal, monto);
+                }}
+                disabled={
+                  generando !== null ||
+                  (notaParcial &&
+                    !(parseFloat(notaMonto) > 0 && parseFloat(notaMonto) <= Number(notaModal.total)))
+                }
+                className="rounded-btn bg-brand px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-brand-hover disabled:opacity-50"
+              >
+                {generando ? "Emitiendo…" : "Emitir nota"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
