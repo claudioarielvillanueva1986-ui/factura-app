@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, TrendingDown } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, TrendingDown, Download } from "lucide-react";
+import { descargarCSV } from "@/lib/csv";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/useAuth";
 import { Card } from "@/components/ui/Card";
@@ -66,6 +67,18 @@ export default function EgresosPage() {
     await supabase.from("egresos").delete().eq("id", id);
   }
 
+  function exportar() {
+    descargarCSV(
+      `egresos-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["Fecha", "Descripción", "Monto"],
+      egresos.map((e) => [
+        new Date(`${e.fecha}T00:00:00`).toLocaleDateString("es-AR"),
+        e.descripcion,
+        Number(e.monto),
+      ])
+    );
+  }
+
   const totalMes = useMemo(() => {
     const m = new Date().toISOString().slice(0, 7);
     return egresos.filter((e) => e.fecha.startsWith(m)).reduce((a, e) => a + Number(e.monto), 0);
@@ -80,12 +93,22 @@ export default function EgresosPage() {
         >
           <ArrowLeft size={15} />
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-[16px] font-semibold">Egresos</h1>
           <p className="text-[12px] text-text-secondary">
             Cargá tus gastos para ver el resultado real de tu negocio.
           </p>
         </div>
+        {egresos.length > 0 && (
+          <button
+            onClick={exportar}
+            title="Exportar a CSV"
+            className="inline-flex items-center gap-1.5 rounded-btn border border-line bg-surface px-3 py-2 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+          >
+            <Download size={15} />
+            <span className="hidden sm:inline">Exportar</span>
+          </button>
+        )}
       </header>
 
       <Card glass className="animate-fade-up p-4" style={{ animationDelay: "30ms" }}>
