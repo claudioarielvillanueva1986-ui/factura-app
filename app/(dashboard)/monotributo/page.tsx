@@ -419,6 +419,63 @@ export default function MonotributoPage() {
             </div>
           </Card>
 
+          {/* ---------- Comparador de categorías ---------- */}
+          <Card glass className="animate-fade-up overflow-hidden p-0" style={{ animationDelay: "150ms" }}>
+            <div className="px-4 pb-1 pt-4">
+              <p className="text-[13px] font-medium text-text-secondary">
+                Categorías del monotributo
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr className="text-[10px] uppercase tracking-wide text-text-muted">
+                    <th className="px-4 py-2 text-left font-medium">Categoría</th>
+                    <th className="px-2 py-2 text-right font-medium">Tope anual</th>
+                    <th className="px-4 py-2 text-right font-medium">Cuota mensual</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cats.map((c) => {
+                    const esActual = c.categoria === catDeclarada?.categoria;
+                    const esSugerida = sugerir && c.categoria === catCorresponde?.categoria;
+                    return (
+                      <tr
+                        key={c.categoria}
+                        className={`border-t border-line/60 ${
+                          esActual ? "bg-brand-dim" : esSugerida ? "bg-accent-dim" : ""
+                        }`}
+                      >
+                        <td className="px-4 py-2">
+                          <span className="font-semibold">{c.categoria}</span>
+                          {esActual && (
+                            <span className="ml-2 rounded-full bg-brand px-2 py-0.5 text-[9px] font-semibold text-white">
+                              La tuya
+                            </span>
+                          )}
+                          {esSugerida && (
+                            <span className="ml-2 rounded-full bg-accent px-2 py-0.5 text-[9px] font-semibold text-[#052e16]">
+                              Sugerida
+                            </span>
+                          )}
+                          {c.solo_bienes && (
+                            <span className="ml-2 text-[9px] text-text-muted">solo bienes</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 text-right tabular-nums">
+                          {formatoPesos(Number(c.limite_anual))}
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums text-text-secondary">
+                          {c.cuota_mensual != null ? formatoPesos(Number(c.cuota_mensual)) : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
           {/* Cambiar categoría (siempre disponible) */}
           {catDeclarada && (
             <Card glass className="animate-fade-up" style={{ animationDelay: "160ms" }}>
