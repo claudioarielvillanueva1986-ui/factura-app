@@ -60,7 +60,7 @@ export default function EnviosPage() {
             return (
               <div
                 key={f.id}
-                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 transition-colors hover:bg-white/[0.03] sm:px-5"
+                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 transition-colors hover:bg-slate-50 sm:px-5"
               >
                 <Avatar nombre={nombre} auto={f.origen === "mercadopago"} />
                 <div className="min-w-0 flex-1 basis-36">

@@ -1,7 +1,7 @@
 import type { EstadoFactura } from "@/lib/types";
 
 const ESTILOS: Record<EstadoFactura, string> = {
-  borrador: "bg-white/10 text-text-secondary",
+  borrador: "bg-slate-100 text-text-secondary",
   emitida: "bg-status-ok/15 text-status-ok",
   enviada: "bg-accent-dim text-accent-light",
   error: "bg-status-error/15 text-status-error",

@@ -13,7 +13,7 @@ export function Splash() {
         <div className="animate-splash-logo">
           <Logo size="text-4xl" />
         </div>
-        <div className="h-[3px] w-36 overflow-hidden rounded-full bg-white/[0.06]">
+        <div className="h-[3px] w-36 overflow-hidden rounded-full bg-slate-200">
           <div className="h-full w-1/3 animate-splash-bar rounded-full bg-gradient-to-r from-brand to-accent" />
         </div>
       </div>

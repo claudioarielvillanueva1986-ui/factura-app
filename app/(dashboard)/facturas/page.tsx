@@ -240,7 +240,7 @@ export default function FacturasPage() {
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Cliente o número…"
-            className="w-full rounded-btn border border-line bg-[#1A2235] py-2 pl-8 pr-3 text-[13px] placeholder:text-text-muted"
+            className="w-full rounded-btn border border-line bg-surface-2 py-2 pl-8 pr-3 text-[13px] placeholder:text-text-muted"
           />
         </div>
       </div>
@@ -254,7 +254,7 @@ export default function FacturasPage() {
             return (
               <div
                 key={f.id}
-                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 transition-colors hover:bg-white/[0.03] sm:px-5"
+                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 transition-colors hover:bg-slate-50 sm:px-5"
               >
                 <Avatar nombre={nombre} auto={f.origen === "mercadopago"} />
                 <div className="min-w-0 flex-1 basis-36">
@@ -363,7 +363,7 @@ export default function FacturasPage() {
             </p>
 
             <div className="mt-4 space-y-2">
-              <label className="flex cursor-pointer items-center gap-2.5 rounded-btn border border-line bg-[#1A2235] px-3 py-2.5">
+              <label className="flex cursor-pointer items-center gap-2.5 rounded-btn border border-line bg-surface-2 px-3 py-2.5">
                 <input
                   type="radio"
                   checked={!notaParcial}
@@ -374,7 +374,7 @@ export default function FacturasPage() {
                   Anular total <span className="text-text-muted">({formatoPesos(notaModal.total)})</span>
                 </span>
               </label>
-              <label className="flex cursor-pointer items-center gap-2.5 rounded-btn border border-line bg-[#1A2235] px-3 py-2.5">
+              <label className="flex cursor-pointer items-center gap-2.5 rounded-btn border border-line bg-surface-2 px-3 py-2.5">
                 <input
                   type="radio"
                   checked={notaParcial}
@@ -392,7 +392,7 @@ export default function FacturasPage() {
                   placeholder="Monto a acreditar"
                   value={notaMonto}
                   onChange={(e) => setNotaMonto(e.target.value)}
-                  className="w-full rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px] tabular-nums"
+                  className="w-full rounded-btn border border-line bg-surface-2 px-3 py-2 text-[13px] tabular-nums"
                 />
               )}
             </div>

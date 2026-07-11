@@ -73,7 +73,7 @@ const ESTADO_BADGE: Record<EstadoCuenta, string> = {
   activo: "bg-status-ok/15 text-status-ok",
   gracia: "bg-status-warn/15 text-status-warn",
   suspendido: "bg-status-error/15 text-status-error",
-  cancelado: "bg-white/10 text-text-secondary",
+  cancelado: "bg-slate-100 text-text-secondary",
 };
 
 // ISO (UTC) ↔ valor de <input type="datetime-local"> (hora local del navegador).
@@ -238,7 +238,7 @@ export default function AdminPage() {
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Nombre, CUIT…"
-            className="w-full rounded-btn border border-line bg-[#1A2235] py-2 pl-8 pr-3 text-[13px] placeholder:text-text-muted"
+            className="w-full rounded-btn border border-line bg-surface-2 py-2 pl-8 pr-3 text-[13px] placeholder:text-text-muted"
           />
         </div>
       </div>
@@ -387,14 +387,14 @@ function CategoriasMonotributoEditor() {
               placeholder="tope anual"
               value={limites[c.categoria] ?? ""}
               onChange={(e) => setLimites((v) => ({ ...v, [c.categoria]: e.target.value }))}
-              className="min-w-0 flex-1 rounded-btn border border-line bg-[#1A2235] px-2.5 py-1.5 text-[12px] tabular-nums"
+              className="min-w-0 flex-1 rounded-btn border border-line bg-surface-2 px-2.5 py-1.5 text-[12px] tabular-nums"
             />
             <input
               type="number"
               placeholder="cuota mensual"
               value={cuotas[c.categoria] ?? ""}
               onChange={(e) => setCuotas((v) => ({ ...v, [c.categoria]: e.target.value }))}
-              className="min-w-0 flex-1 rounded-btn border border-line bg-[#1A2235] px-2.5 py-1.5 text-[12px] tabular-nums"
+              className="min-w-0 flex-1 rounded-btn border border-line bg-surface-2 px-2.5 py-1.5 text-[12px] tabular-nums"
             />
             <button
               onClick={() => guardar(c.categoria)}
@@ -428,7 +428,7 @@ function SaludTile({
           ? "text-brand-hover"
           : "text-text-secondary";
   return (
-    <div className="rounded-btn bg-white/5 px-3 py-2">
+    <div className="rounded-btn bg-slate-100 px-3 py-2">
       <p className="text-[10px] uppercase tracking-wide text-text-muted">{label}</p>
       <p className={`mt-0.5 text-[16px] font-semibold tabular-nums ${color}`}>{valor}</p>
     </div>
@@ -543,9 +543,9 @@ function DetalleNegocio({
   }
 
   return (
-    <div className="space-y-4 border-t border-line bg-black/10 px-4 py-4 sm:px-5">
+    <div className="space-y-4 border-t border-line bg-slate-50 px-4 py-4 sm:px-5">
       {/* Salud de facturación: ¿está facturando bien? ¿tiene errores? */}
-      <div className="rounded-btn border border-line bg-white/[0.02] p-3">
+      <div className="rounded-btn border border-line bg-slate-50 p-3">
         <p className="mb-2 flex items-center gap-1.5 text-[12px] font-medium text-text-secondary">
           <FileText size={13} />
           Estado de la facturación
@@ -558,7 +558,7 @@ function DetalleNegocio({
           ) : (
             <SaludTile label="Borradores" valor={negocio.facturas_borrador} tono="muted" />
           )}
-          <div className="rounded-btn bg-white/5 px-3 py-2">
+          <div className="rounded-btn bg-slate-100 px-3 py-2">
             <p className="text-[10px] uppercase tracking-wide text-text-muted">Conexiones</p>
             <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
               <span className={negocio.arca_ok ? "text-status-ok" : "text-status-warn"}>
@@ -617,7 +617,7 @@ function DetalleNegocio({
               type="datetime-local"
               value={delegadoEn}
               onChange={(e) => setDelegadoEn(e.target.value)}
-              className="rounded-btn border border-line bg-[#1A2235] px-2 py-1 text-[11px]"
+              className="rounded-btn border border-line bg-surface-2 px-2 py-1 text-[11px]"
             />
             <span className="text-text-muted">
               (cargá cuándo el cliente terminó el trámite en ARCA — arranca el conteo de 24 hs
@@ -688,7 +688,7 @@ function DetalleNegocio({
               type="date"
               value={trialHasta}
               onChange={(e) => setTrialHasta(e.target.value)}
-              className="w-full rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px]"
+              className="w-full rounded-btn border border-line bg-surface-2 px-3 py-2 text-[13px]"
             />
             <Button type="button" variant="ghost" onClick={() => extenderDias(7)}>
               +7d
@@ -705,7 +705,7 @@ function DetalleNegocio({
               type="date"
               value={graciaHasta}
               onChange={(e) => setGraciaHasta(e.target.value)}
-              className="w-full rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px]"
+              className="w-full rounded-btn border border-line bg-surface-2 px-3 py-2 text-[13px]"
             />
             <Button type="button" variant="ghost" onClick={() => darGracia(3)}>
               <Calendar size={14} />
@@ -728,7 +728,7 @@ function DetalleNegocio({
           <select
             value={estado}
             onChange={(e) => setEstado(e.target.value as EstadoCuenta)}
-            className="w-full rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px]"
+            className="w-full rounded-btn border border-line bg-surface-2 px-3 py-2 text-[13px]"
           >
             <option value="trial">Trial</option>
             <option value="activo">Activo</option>
@@ -746,7 +746,7 @@ function DetalleNegocio({
           onChange={(e) => setNotas(e.target.value)}
           rows={2}
           placeholder="Ej: pidió 15 días más por viaje, pagó por transferencia el 3/7…"
-          className="w-full rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px] placeholder:text-text-muted"
+          className="w-full rounded-btn border border-line bg-surface-2 px-3 py-2 text-[13px] placeholder:text-text-muted"
         />
       </label>
 
@@ -778,7 +778,7 @@ function DetalleNegocio({
             {facturas.map((f) => {
               const tieneCae = Boolean(f.cae) && (f.estado === "emitida" || f.estado === "enviada");
               return (
-                <div key={f.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-white/[0.02] px-3 py-2 text-[12px]">
+                <div key={f.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-slate-50 px-3 py-2 text-[12px]">
                   <span className="w-[70px] shrink-0 tabular-nums text-text-secondary">
                     {formatoNumeroFactura(f.tipo as "A" | "B" | "C", f.numero, negocio.punto_venta ?? 1)}
                   </span>
@@ -826,7 +826,7 @@ function DetalleNegocio({
             {pagos.map((p) => (
               <div
                 key={p.id}
-                className="flex items-center justify-between rounded-btn bg-white/5 px-3 py-1.5 text-[12px]"
+                className="flex items-center justify-between rounded-btn bg-slate-100 px-3 py-1.5 text-[12px]"
               >
                 <span className="text-text-secondary">
                   {new Date(p.created_at).toLocaleDateString("es-AR")}

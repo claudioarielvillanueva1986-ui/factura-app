@@ -112,7 +112,7 @@ export default function LoginPage() {
 
         <div className="surface-ring card-glass rounded-card border border-line/60 p-6">
           {/* Tabs login / registro */}
-          <div className="mb-5 grid grid-cols-2 gap-1 rounded-btn bg-[#1A2235] p-1">
+          <div className="mb-5 grid grid-cols-2 gap-1 rounded-btn bg-surface-2 p-1">
             {(["login", "registro"] as Modo[]).map((m) => (
               <button
                 key={m}

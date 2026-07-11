@@ -187,7 +187,7 @@ function TabNegocio() {
           <select
             value={form.condicion_iva}
             onChange={(e) => setForm({ ...form, condicion_iva: e.target.value })}
-            className="w-full rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[13px]"
+            className="w-full rounded-btn border border-line bg-surface-2 px-3 py-2 text-[13px]"
           >
             <option value="monotributo">Monotributo (solo factura C)</option>
             <option value="responsable_inscripto">Responsable Inscripto (A/B/C)</option>
@@ -410,7 +410,7 @@ function CertificadoPropio() {
           </li>
           <li>
             Creá un alias nuevo: te sugerimos{" "}
-            <code className="rounded bg-[#1A2235] px-1.5 py-0.5 text-accent-light">facturacion</code>.
+            <code className="rounded bg-surface-2 px-1.5 py-0.5 text-accent-light">facturacion</code>.
           </li>
           <li>Subí el archivo <code className="text-accent-light">facturacion.csr</code> del paso 1.</li>
           <li>Descargá el certificado <code className="text-accent-light">.crt</code> que te genera ARCA.</li>
@@ -427,7 +427,7 @@ function CertificadoPropio() {
           className={`inline-flex cursor-pointer items-center gap-2 rounded-btn px-4 py-2 text-[13px] font-medium transition-colors ${
             paso1Ok
               ? "bg-brand text-white hover:bg-brand-hover"
-              : "cursor-not-allowed bg-white/5 text-text-muted"
+              : "cursor-not-allowed bg-slate-100 text-text-muted"
           }`}
         >
           <Upload size={14} />
@@ -628,7 +628,7 @@ function TabMercadoPago() {
             <a
               href={esAdmin ? "/api/mp/oauth/conectar" : undefined}
               aria-disabled={!esAdmin}
-              className={`inline-flex items-center gap-2 rounded-btn border border-line bg-white/5 px-4 py-2 text-[13px] font-medium text-text-secondary transition-colors ${esAdmin ? "hover:bg-white/10" : "cursor-not-allowed opacity-50"}`}
+              className={`inline-flex items-center gap-2 rounded-btn border border-line bg-slate-100 px-4 py-2 text-[13px] font-medium text-text-secondary transition-colors ${esAdmin ? "hover:bg-slate-100" : "cursor-not-allowed opacity-50"}`}
             >
               <RefreshCw size={14} />
               Reconectar cuenta
@@ -674,7 +674,7 @@ function TabMercadoPago() {
             onClick={toggleAutoFacturar}
             disabled={!esAdmin}
             className={`relative h-6 w-11 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-              config?.auto_facturar ? "bg-brand" : "bg-white/10"
+              config?.auto_facturar ? "bg-brand" : "bg-slate-200"
             }`}
           >
             <span
@@ -702,7 +702,7 @@ function TabMercadoPago() {
               onClick={toggleTransferencias}
               disabled={!esAdmin}
               className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                config?.facturar_transferencias ? "bg-brand" : "bg-white/10"
+                config?.facturar_transferencias ? "bg-brand" : "bg-slate-200"
               }`}
             >
               <span
@@ -742,7 +742,7 @@ function TabMercadoPago() {
           </p>
           {config?.manual && webhookUrlManual && (
             <div className="flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded-btn border border-line bg-[#1A2235] px-3 py-2 text-[12px] text-accent-light">
+              <code className="min-w-0 flex-1 truncate rounded-btn border border-line bg-surface-2 px-3 py-2 text-[12px] text-accent-light">
                 {webhookUrlManual}
               </code>
               <Button type="button" variant="ghost" onClick={copiar}>
@@ -895,7 +895,7 @@ function CardEmailAutomatico({ esAdmin }: { esAdmin: boolean }) {
           onClick={toggle}
           disabled={!esAdmin || activo === null}
           className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-            activo ? "bg-brand" : "bg-white/10"
+            activo ? "bg-brand" : "bg-slate-200"
           }`}
         >
           <span
@@ -916,7 +916,7 @@ const ESTADO_LABEL: Record<string, { texto: string; clase: string }> = {
   activo: { texto: "Activa", clase: "bg-status-ok/15 text-status-ok" },
   gracia: { texto: "Período de gracia", clase: "bg-status-warn/15 text-status-warn" },
   suspendido: { texto: "Suspendida", clase: "bg-status-error/15 text-status-error" },
-  cancelado: { texto: "Cancelada", clase: "bg-white/10 text-text-secondary" },
+  cancelado: { texto: "Cancelada", clase: "bg-slate-100 text-text-secondary" },
 };
 
 function diasRestantes(fecha: string | null | undefined) {
@@ -990,7 +990,7 @@ function TabSuscripcion() {
           <h2 className="text-[14px] font-semibold">Tu plan</h2>
           <span
             className={`rounded-full px-3 py-1 text-[11px] font-medium ${
-              ESTADO_LABEL[estado]?.clase ?? "bg-white/10 text-text-secondary"
+              ESTADO_LABEL[estado]?.clase ?? "bg-slate-100 text-text-secondary"
             }`}
           >
             {ESTADO_LABEL[estado]?.texto ?? estado}
