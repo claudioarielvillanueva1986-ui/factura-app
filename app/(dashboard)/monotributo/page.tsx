@@ -19,6 +19,7 @@ interface Categoria {
   categoria: string;
   orden: number;
   limite_anual: number;
+  cuota_mensual: number | null;
   solo_bienes: boolean;
 }
 
@@ -107,6 +108,14 @@ export default function MonotributoPage() {
 
   const maxMes = Math.max(1, ...porMes.map((m) => m.total));
 
+  const margen = limite != null ? Math.max(0, limite - facturado) : null;
+  // Proyección anual al ritmo de los últimos 3 meses completos (sin el actual).
+  const ult3 = porMes.slice(2, 5);
+  const promedioMensual = ult3.reduce((a, m) => a + m.total, 0) / (ult3.length || 1);
+  const proyeccionAnual = Math.round(promedioMensual * 12);
+  const catProyectada = cats.find((c) => proyeccionAnual <= Number(c.limite_anual));
+  const cuotaMes = catDeclarada?.cuota_mensual ? Number(catDeclarada.cuota_mensual) : null;
+
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <header className="animate-fade-up">
@@ -175,6 +184,12 @@ export default function MonotributoPage() {
                     Tope categoría {catDeclarada!.categoria}: {formatoPesos(limite)}
                   </span>
                 </div>
+                {!seExcede && margen != null && (
+                  <p className="text-[12px] text-text-secondary">
+                    Te quedan <strong className="text-text-primary">{formatoPesos(margen)}</strong>{" "}
+                    antes de tener que recategorizar.
+                  </p>
+                )}
               </div>
             ) : (
               <div className="rounded-btn border border-line bg-[#1A2235] p-3">
@@ -190,6 +205,21 @@ export default function MonotributoPage() {
               </div>
             )}
           </Card>
+
+          {/* ---------- Cuota mensual ---------- */}
+          {cuotaMes != null && (
+            <Card glass className="animate-fade-up flex items-center justify-between" style={{ animationDelay: "60ms" }}>
+              <div>
+                <p className="text-[12px] text-text-secondary">Tu cuota de este mes</p>
+                <p className="mt-0.5 text-[22px] font-semibold tabular-nums">
+                  {formatoPesos(cuotaMes)}
+                </p>
+              </div>
+              <span className="rounded-full bg-brand-dim px-3 py-1 text-[11px] font-medium text-brand-hover">
+                Vence el 20
+              </span>
+            </Card>
+          )}
 
           {/* ---------- Recategorización ---------- */}
           {sugerir && (
@@ -334,6 +364,24 @@ export default function MonotributoPage() {
               ))}
             </div>
           </Card>
+
+          {/* ---------- Proyección anual ---------- */}
+          {proyeccionAnual > 0 && (
+            <Card glass className="animate-fade-up" style={{ animationDelay: "130ms" }}>
+              <p className="flex items-center gap-2 text-[13px] font-medium text-text-secondary">
+                <TrendingUp size={16} className="text-brand-hover" />
+                Proyección a 12 meses
+              </p>
+              <p className="mt-1.5 text-[12px] text-text-secondary">
+                Al ritmo de los últimos meses, facturarías{" "}
+                <strong className="text-text-primary">{formatoPesos(proyeccionAnual)}</strong> en el
+                año
+                {catProyectada
+                  ? ` → te correspondería la categoría ${catProyectada.categoria}.`
+                  : " → superarías el tope del monotributo (revisá tu situación)."}
+              </p>
+            </Card>
+          )}
 
           {/* ---------- Resultado (ingresos − egresos) ---------- */}
           <Card glass className="animate-fade-up" style={{ animationDelay: "140ms" }}>
